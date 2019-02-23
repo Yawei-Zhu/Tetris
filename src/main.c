@@ -24,6 +24,8 @@
 
 int g_iMainContinue;
 
+void main_Exit(void);
+
 BOOL CALLBACK main_ConsoleCtrlHandler(DWORD ulEvent)
 {
     LOG_WARN("Closed by console ctrl cvent(%lu).", ulEvent);
