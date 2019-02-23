@@ -11,10 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 #include "base.h"
+#include "main.h"
 #include "map.h"
 #include "show.h"
+#include "log.h"
 
 typedef MAP_EVENT_E (*MAP_TRANSSTATE_PF)(void);
 #define MAP_PIXEL2CHAR(mp) (MP_TYPE_INVALID == (mp) ? '.' : '#')
@@ -22,47 +25,55 @@ typedef MAP_EVENT_E (*MAP_TRANSSTATE_PF)(void);
 #define BLOCK_NUM 7
 #define MAP_TIMECOUNT_MAX 30
 
-static int g_aaiMap[MAP_ROW][MAP_COL];
-static int g_aaiNext[4][2];
-static int g_aaiBuff[4][2];
-static int g_aiPosition[2];
-static MAP_STATE_E g_enCurr;
-static int  g_iTimeCount;
+int g_aaiMap[MAP_ROW][MAP_COL];
+int g_aaiMapNextTetr[4][2];
+int g_aaiMapCurrTetr[4][2];
+int g_aiMapCurrTetrPosition[2];
+MAP_STATE_E g_enMapCurrState;
+int  g_iMapTimeCount;
 
-static int g_aaiAll[BLOCK_NUM][4][2] =
-{
-        {{0, 2}, {1, 2}, {2, 2}, {3, 2}},
-        {{0, 1}, {0, 2}, {1, 2}, {2, 2}},
-        {{0, 1}, {0, 2}, {1, 1}, {2, 1}},
-        {{1, 1}, {1, 2}, {2, 1}, {2, 2}},
-        {{0, 1}, {1, 1}, {1, 2}, {2, 2}},
-        {{0, 2}, {1, 1}, {1, 2}, {2, 1}},
-        {{1, 2}, {2, 1}, {2, 2}, {2, 3}},
-};
-
-void _map_SetBuff(int aaiBuff[4][2])
+void map_SetBuff(int aaiBuff[4][2])
 {
     int dx, dy;
 
-    memcpy(g_aaiBuff, aaiBuff, sizeof(g_aaiBuff));
+    memcpy(g_aaiMapCurrTetr, aaiBuff, sizeof(g_aaiMapCurrTetr));
 
     dx = MAP_COL / 2 - 2;
     dy = -4;
 
-    g_aiPosition[0] = dy;
-    g_aiPosition[1] = dx;
+    g_aiMapCurrTetrPosition[0] = dy;
+    g_aiMapCurrTetrPosition[1] = dx;
 
     for(int i = 0; i < 4; i++)
     {
-        g_aaiBuff[i][0] += dy;
-        g_aaiBuff[i][1] += dx;
+        g_aaiMapCurrTetr[i][0] += dy;
+        g_aaiMapCurrTetr[i][1] += dx;
     }
 }
 
-void _map_SetNext(void)
+void map_GetRandTetr(int aaiTetr[4][2])
 {
-    memcpy(g_aaiNext, g_aaiAll[rand() % BLOCK_NUM], sizeof(g_aaiNext));
+    int aaaiAllTetr[BLOCK_NUM][4][2] =
+    {
+            {{0, 2}, {1, 2}, {2, 2}, {3, 2}},
+            {{0, 1}, {0, 2}, {1, 2}, {2, 2}},
+            {{0, 1}, {0, 2}, {1, 1}, {2, 1}},
+            {{1, 1}, {1, 2}, {2, 1}, {2, 2}},
+            {{0, 1}, {1, 1}, {1, 2}, {2, 2}},
+            {{0, 2}, {1, 1}, {1, 2}, {2, 1}},
+            {{1, 2}, {2, 1}, {2, 2}, {2, 3}},
+    };
+
+    assert(NULL != aaiTetr);
+
+    memcpy(aaiTetr, aaaiAllTetr[rand() % BLOCK_NUM], sizeof(aaaiAllTetr[0]));
 }
+
+void map_UpdateNext(void)
+{
+    map_GetRandTetr(g_aaiMapNextTetr);
+}
+
 void _map_Show(void)
 {
     int aaiMap[MAP_ROW][MAP_COL], aaiNext[4][4];
@@ -72,8 +83,8 @@ void _map_Show(void)
 
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiBuff[i][0];
-        x = g_aaiBuff[i][1];
+        y = g_aaiMapCurrTetr[i][0];
+        x = g_aaiMapCurrTetr[i][1];
         if(0 <= y)
         {
             aaiMap[y][x] = MP_TYPE_POINT;
@@ -93,8 +104,8 @@ void _map_Show(void)
     memset(aaiNext, MAP_PIXEL2CHAR(MP_TYPE_INVALID), sizeof(aaiNext));
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiNext[i][0];
-        x = g_aaiNext[i][1];
+        y = g_aaiMapNextTetr[i][0];
+        x = g_aaiMapNextTetr[i][1];
         aaiNext[y][x] = MAP_PIXEL2CHAR(MP_TYPE_POINT);
     }
 
@@ -107,10 +118,10 @@ MAP_EVENT_E _map_ActionInit()
 
     srand(time(0));
 
-    _map_SetBuff(g_aaiAll[rand() % BLOCK_NUM]);
-    _map_SetNext();
+    map_GetRandTetr(g_aaiMapCurrTetr);
+    map_UpdateNext();
 
-    g_iTimeCount = 0;
+    g_iMapTimeCount = 0;
 
     //g_aiPosition[0] = 0;
 
@@ -123,8 +134,8 @@ MAP_EVENT_E _map_ActionDown()
 
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiBuff[i][0] + 1;
-        aaiTemp[i][1] = g_aaiBuff[i][1];
+        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0] + 1;
+        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1];
     }
 
     for (int i = 0; i < 4; i++)
@@ -138,8 +149,8 @@ MAP_EVENT_E _map_ActionDown()
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[0]++;
+    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
+    g_aiMapCurrTetrPosition[0]++;
 
     return ME_MAX;
 }
@@ -150,8 +161,8 @@ MAP_EVENT_E _map_ActionLeft()
 
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiBuff[i][0];
-        aaiTemp[i][1] = g_aaiBuff[i][1] - 1;
+        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0];
+        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1] - 1;
     }
 
     for (int i = 0; i < 4; i++)
@@ -165,8 +176,8 @@ MAP_EVENT_E _map_ActionLeft()
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[1]--;
+    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
+    g_aiMapCurrTetrPosition[1]--;
 
     return ME_MAX;
 }
@@ -177,8 +188,8 @@ MAP_EVENT_E _map_ActionRight()
 
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiBuff[i][0];
-        aaiTemp[i][1] = g_aaiBuff[i][1] + 1;
+        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0];
+        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1] + 1;
     }
 
     for (int i = 0; i < 4; i++)
@@ -192,8 +203,8 @@ MAP_EVENT_E _map_ActionRight()
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[1]++;
+    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
+    g_aiMapCurrTetrPosition[1]++;
 
     return ME_MAX;
 }
@@ -204,11 +215,11 @@ MAP_EVENT_E _map_ActionClock()
 
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiBuff[i][0] - g_aiPosition[0];
-        x = g_aaiBuff[i][1] - g_aiPosition[1];
+        y = g_aaiMapCurrTetr[i][0] - g_aiMapCurrTetrPosition[0];
+        x = g_aaiMapCurrTetr[i][1] - g_aiMapCurrTetrPosition[1];
 
-        aaiTemp[i][0] = g_aiPosition[0] + x;
-        aaiTemp[i][1] = g_aiPosition[1] + 3 - y;
+        aaiTemp[i][0] = g_aiMapCurrTetrPosition[0] + x;
+        aaiTemp[i][1] = g_aiMapCurrTetrPosition[1] + 3 - y;
     }
 
     for (int i = 0; i < 4; i++)
@@ -223,7 +234,7 @@ MAP_EVENT_E _map_ActionClock()
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
+    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
 
     return ME_MAX;
 }
@@ -234,11 +245,11 @@ MAP_EVENT_E _map_ActionCntrClk()
 
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiBuff[i][0] - g_aiPosition[0];
-        x = g_aaiBuff[i][1] - g_aiPosition[1];
+        y = g_aaiMapCurrTetr[i][0] - g_aiMapCurrTetrPosition[0];
+        x = g_aaiMapCurrTetr[i][1] - g_aiMapCurrTetrPosition[1];
 
-        aaiTemp[i][0] = g_aiPosition[0] + 3 - x;
-        aaiTemp[i][1] = g_aiPosition[1] + y;
+        aaiTemp[i][0] = g_aiMapCurrTetrPosition[0] + 3 - x;
+        aaiTemp[i][1] = g_aiMapCurrTetrPosition[1] + y;
     }
 
     for (int i = 0; i < 4; i++)
@@ -253,7 +264,7 @@ MAP_EVENT_E _map_ActionCntrClk()
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
+    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
 
     return ME_MAX;
 }
@@ -264,8 +275,8 @@ MAP_EVENT_E _map_ActionLanding()
 
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiBuff[i][0];
-        x = g_aaiBuff[i][1];
+        y = g_aaiMapCurrTetr[i][0];
+        x = g_aaiMapCurrTetr[i][1];
 
         if (0 <= y)
         {
@@ -277,8 +288,8 @@ MAP_EVENT_E _map_ActionLanding()
         }
     }
 
-    _map_SetBuff(g_aaiNext);
-    _map_SetNext();
+    map_SetBuff(g_aaiMapNextTetr);
+    map_UpdateNext();
 
     return ME_ANNLT;
 }
@@ -319,28 +330,28 @@ MAP_EVENT_E _map_ActionAnnlt(void)
 
 MAP_EVENT_E _map_TranWait()
 {
-    g_enCurr = MS_WAITING;
+    g_enMapCurrState = MS_WAITING;
 
     return ME_MAX;
 }
 
 MAP_EVENT_E _map_TranPause()
 {
-    g_enCurr = MS_PAUSE;
+    g_enMapCurrState = MS_PAUSE;
 
     return ME_MAX;
 }
 
 MAP_EVENT_E _map_TranFast()
 {
-    g_enCurr = MS_FAST;
+    g_enMapCurrState = MS_FAST;
 
     return ME_MAX;
 }
 
 MAP_EVENT_E _map_TranOver()
 {
-    g_enCurr = MS_OVER;
+    g_enMapCurrState = MS_OVER;
 
     return ME_MAX;
 }
@@ -428,9 +439,11 @@ int _map_FSM(MAP_EVENT_E enEvent)
     MAP_TRANSSTATE_PF pfTrans;
     MAP_EVENT_E enTmpEvent = enEvent;
 
+    LOG_DEBUG("Map FSM: current-state=%d, event=%d", g_enMapCurrState, enEvent);
+
     while(ME_MAX != enTmpEvent)
     {
-        pfTrans = g_apfMapFSM[g_enCurr][enTmpEvent];
+        pfTrans = g_apfMapFSM[g_enMapCurrState][enTmpEvent];
         if (NULL != pfTrans)
         {
             enTmpEvent = pfTrans();
@@ -441,6 +454,8 @@ int _map_FSM(MAP_EVENT_E enEvent)
         }
     }
 
+    LOG_DEBUG("Map FSM: next-state=%d", g_enMapCurrState);
+
     _map_Show();
 
     return ERROR_SUCCESS;
@@ -448,11 +463,11 @@ int _map_FSM(MAP_EVENT_E enEvent)
 
 int _map_ProcEventTime()
 {
-    g_iTimeCount++;
+    g_iMapTimeCount++;
 
-    if (MAP_TIMECOUNT_MAX <= g_iTimeCount || MS_FAST == g_enCurr)
+    if (MAP_TIMECOUNT_MAX <= g_iMapTimeCount || MS_FAST == g_enMapCurrState)
     {
-        g_iTimeCount = 0;
+        g_iMapTimeCount = 0;
 
         _map_FSM(ME_DOWN);
     }
@@ -507,6 +522,8 @@ int _map_ProcEventKey(int iChar)
 }
 int MAP_Input(MAP_INPUT_E enInput, void *pData)
 {
+    LOG_DEBUG("Input type(%d)", enInput);
+
     switch(enInput)
     {
         case MI_TIME:
@@ -516,11 +533,13 @@ int MAP_Input(MAP_INPUT_E enInput, void *pData)
         }
         case MI_KEY:
         {
+            assert(NULL != pData);
             _map_ProcEventKey(*(int *) pData);
             break;
         }
         default:
         {
+            assert(0);
             break;
         }
     }
@@ -530,7 +549,7 @@ int MAP_Input(MAP_INPUT_E enInput, void *pData)
 
 int MAP_Init()
 {
-    g_enCurr = MS_UNINIT;
+    g_enMapCurrState = MS_UNINIT;
 
     _map_FSM(ME_INIT);
 

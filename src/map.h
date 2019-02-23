@@ -10,7 +10,6 @@
 
 #define MAP_ROW 20
 #define MAP_COL 10
-#define MAP_REFRESH_INTERVAL  20
 
 typedef enum tagMapPixel_Type{
 	MP_TYPE_INVALID = 0,
@@ -47,6 +46,7 @@ typedef enum tagMapEvent
 
 typedef enum tagMapInput
 {
+    MI_INVALID,
     MI_TIME,
     MI_KEY,
     MI_MAX,

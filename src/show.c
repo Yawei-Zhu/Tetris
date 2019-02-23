@@ -16,8 +16,8 @@
 #include "map.h"
 #include "show.h"
 
-static HANDLE g_hConsoleOut = NULL;
-static int g_aaiCanvas[SHOW_ROW][SHOW_COL];
+HANDLE g_hConsoleOut = NULL;
+int g_aaiCanvas[SHOW_ROW][SHOW_COL];
 
 int _show_InitCanvas(void)
 {
