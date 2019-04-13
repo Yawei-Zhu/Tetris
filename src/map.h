@@ -56,4 +56,6 @@ int  MAP_Init(void);
 void MAP_Exit(void);
 int  MAP_Input(MAP_INPUT_E enInput, void *pData);
 
+#define MAP_PIXEL2CHAR(mp) (MP_TYPE_INVALID == (mp) ? '.' : '#')
+
 #endif /* MAP_H_ */

@@ -14,7 +14,8 @@ typedef unsigned int        uint;
 typedef unsigned long       ulong;
 
 #define OFFSET(TYPE, MEMBER) ((ulong)(&((TYPE *)0)->MEMBER))
-#define CONTAINER(pMember, TYPE, MEMBER) ((TYPE *)((uchar *)(pMember) - OFFSET(TYPE, MEMBER)))
+#define CONTAINER(pMember, TYPE, MEMBER)  \
+            ((TYPE *)((char *)(pMember) - OFFSET(TYPE, MEMBER)))
 
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))

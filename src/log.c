@@ -65,7 +65,7 @@ int log_GetFileName(uint uiNameBuffLen, char *pcNameBuff)
     (void) log_GetTimeString(LOG_TIMESTR_TYPE_NAME, sizeof(szTimeStr), szTimeStr);
 
     iRet = snprintf(pcNameBuff, uiNameBuffLen,
-                    "E:\\root\\var\\tetris_%s.log", szTimeStr);
+                    "E:\\root\\var\\tetris.log"); //_%s.log", szTimeStr);
 
     return iRet;
 }
@@ -97,15 +97,15 @@ void LOG_Print(LOG_LEVEL_E enLevel, char *szFormat, ...)
         return;
     }
 
-    pstLogFile = fopen(g_acLogFileName, "a+");
+    pstLogFile = fopen(g_acLogFileName, "w+");
     if (NULL == pstLogFile)
     {
         return;
     }
     (void) log_GetTimeString(LOG_TIMESTR_TYPE_LOG, sizeof(szTime), szTime);
 
-    va_start(pstArgs, szFormat);
     szLog[0] = 0;
+    va_start(pstArgs, szFormat);
     vsnprintf(szLog, sizeof(szLog), szFormat, pstArgs);
     va_end(pstArgs);
 

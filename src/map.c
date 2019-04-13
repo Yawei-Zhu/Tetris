@@ -18,75 +18,52 @@
 #include "map.h"
 #include "show.h"
 #include "log.h"
+#include "data.h"
 
-typedef MAP_EVENT_E (*MAP_TRANSSTATE_PF)(void);
-#define MAP_PIXEL2CHAR(mp) (MP_TYPE_INVALID == (mp) ? '.' : '#')
+typedef MAP_EVENT_E (*MAP_PROCEVENT_PF)(void);
 
-#define BLOCK_NUM 7
 #define MAP_TIMECOUNT_MAX 30
 
-int g_aaiMap[MAP_ROW][MAP_COL];
-int g_aaiMapNextTetr[4][2];
-int g_aaiMapCurrTetr[4][2];
-int g_aiMapCurrTetrPosition[2];
-MAP_STATE_E g_enMapCurrState;
 int  g_iMapTimeCount;
 
-void map_SetBuff(int aaiBuff[4][2])
+void map_SetCurrTetris(int aaiTetris[4][2])
 {
-    int dx, dy;
+    int aiPosition[2];
 
-    memcpy(g_aaiMapCurrTetr, aaiBuff, sizeof(g_aaiMapCurrTetr));
+    (void) DATA_SetCurrTetris(aaiTetris);
 
-    dx = MAP_COL / 2 - 2;
-    dy = -4;
+    aiPosition[0] = -4;
+    aiPosition[1] = MAP_COL / 2 - 2;
+    (void) DATA_SetCurrTetrisPosition(aiPosition);
 
-    g_aiMapCurrTetrPosition[0] = dy;
-    g_aiMapCurrTetrPosition[1] = dx;
-
-    for(int i = 0; i < 4; i++)
-    {
-        g_aaiMapCurrTetr[i][0] += dy;
-        g_aaiMapCurrTetr[i][1] += dx;
-    }
+    return;
 }
 
-void map_GetRandTetr(int aaiTetr[4][2])
+void map_UpdateNextTetris(void)
 {
-    int aaaiAllTetr[BLOCK_NUM][4][2] =
-    {
-            {{0, 2}, {1, 2}, {2, 2}, {3, 2}},
-            {{0, 1}, {0, 2}, {1, 2}, {2, 2}},
-            {{0, 1}, {0, 2}, {1, 1}, {2, 1}},
-            {{1, 1}, {1, 2}, {2, 1}, {2, 2}},
-            {{0, 1}, {1, 1}, {1, 2}, {2, 2}},
-            {{0, 2}, {1, 1}, {1, 2}, {2, 1}},
-            {{1, 2}, {2, 1}, {2, 2}, {2, 3}},
-    };
+    int (*ppiTetris)[2];
 
-    assert(NULL != aaiTetr);
-
-    memcpy(aaiTetr, aaaiAllTetr[rand() % BLOCK_NUM], sizeof(aaaiAllTetr[0]));
+    ppiTetris = DATA_GetRandTetris();
+    (void) DATA_SetNextTetris(ppiTetris);
 }
 
-void map_UpdateNext(void)
-{
-    map_GetRandTetr(g_aaiMapNextTetr);
-}
-
-void _map_Show(void)
+void map_Show(void)
 {
     int aaiMap[MAP_ROW][MAP_COL], aaiNext[4][4];
-    int x, y;
+    int x, y, *piPosition;
+    int (*ppiTetris)[2];
 
-    memcpy(aaiMap, g_aaiMap, sizeof(aaiMap));
+    memcpy(aaiMap, DATA_GetMapCanvas(), sizeof(aaiMap));
 
+    ppiTetris = DATA_GetCurrTetris();
+    piPosition = DATA_GetCurrTetrisPosition();
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiMapCurrTetr[i][0];
-        x = g_aaiMapCurrTetr[i][1];
+        y = ppiTetris[i][0] + piPosition[0];
+        x = ppiTetris[i][1] + piPosition[1];
         if(0 <= y)
         {
+            assert(0 <= y && y < MAP_ROW && 0 <= x && x < MAP_COL);
             aaiMap[y][x] = MP_TYPE_POINT;
         }
     }
@@ -101,186 +78,206 @@ void _map_Show(void)
 
     SHOW_ShowMap(aaiMap);
 
+    ppiTetris = DATA_GetNextTetris();
     memset(aaiNext, MAP_PIXEL2CHAR(MP_TYPE_INVALID), sizeof(aaiNext));
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiMapNextTetr[i][0];
-        x = g_aaiMapNextTetr[i][1];
+        y = ppiTetris[i][0];
+        x = ppiTetris[i][1];
         aaiNext[y][x] = MAP_PIXEL2CHAR(MP_TYPE_POINT);
     }
 
     SHOW_ShowNext(aaiNext);
+
+    return;
 }
 
-MAP_EVENT_E _map_ActionInit()
+MAP_EVENT_E map_ActionInit()
 {
-    memset(g_aaiMap, 0, sizeof(g_aaiMap));
+    int aaiMap[MAP_ROW][MAP_COL];
+    int (*ppiTetris)[2];
+
+    memset(aaiMap, 0, sizeof(aaiMap));
+    (void) DATA_SetMapCanvas(aaiMap);
 
     srand(time(0));
 
-    map_GetRandTetr(g_aaiMapCurrTetr);
-    map_UpdateNext();
+    ppiTetris = DATA_GetRandTetris();
+    map_SetCurrTetris(ppiTetris);
+
+    map_UpdateNextTetris();
 
     g_iMapTimeCount = 0;
-
-    //g_aiPosition[0] = 0;
 
     return ME_WAIT;
 }
 
-MAP_EVENT_E _map_ActionDown()
+MAP_EVENT_E map_ActionDown()
 {
-    int aaiTemp[4][2], x, y;
+    int aiPosition[2], x, y;
+    int (*ppiMap)[MAP_COL];
+    int (*ppiCurrTetris)[2];
 
+    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
+    aiPosition[0]++;
+
+    ppiCurrTetris = DATA_GetCurrTetris();
+    ppiMap = DATA_GetMapCanvas();
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0] + 1;
-        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1];
-    }
+        y = ppiCurrTetris[i][0] + aiPosition[0];
+        x = ppiCurrTetris[i][1] + aiPosition[1];
 
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_ROW <= y || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+        if (MAP_ROW <= y || (0 <= y && MP_TYPE_INVALID != ppiMap[y][x]))
         {
             return ME_LANDING;
         }
     }
 
-    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
-    g_aiMapCurrTetrPosition[0]++;
+    DATA_SetCurrTetrisPosition(aiPosition);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionLeft()
+MAP_EVENT_E map_ActionLeft()
 {
-    int aaiTemp[4][2], x, y;
+    int aiPosition[2], x, y;
+    int (*ppiMap)[MAP_COL];
+    int (*ppiCurrTetris)[2];
 
+    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
+    aiPosition[1]--;
+
+    ppiCurrTetris = DATA_GetCurrTetris();
+    ppiMap = DATA_GetMapCanvas();
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0];
-        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1] - 1;
-    }
+        y = ppiCurrTetris[i][0] + aiPosition[0];
+        x = ppiCurrTetris[i][1] + aiPosition[1];
 
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (0 > x || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+        if (0 > x || (0 <= y && MP_TYPE_INVALID != ppiMap[y][x]))
         {
             return ME_MAX;
         }
     }
 
-    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
-    g_aiMapCurrTetrPosition[1]--;
+    DATA_SetCurrTetrisPosition(aiPosition);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionRight()
+MAP_EVENT_E map_ActionRight()
 {
-    int aaiTemp[4][2], x, y;
+    int aiPosition[2], x, y;
+    int (*ppiMap)[MAP_COL];
+    int (*ppiCurrTetris)[2];
 
+    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
+    aiPosition[1]++;
+
+    ppiCurrTetris = DATA_GetCurrTetris();
+    ppiMap = DATA_GetMapCanvas();
     for (int i = 0; i < 4; i++)
     {
-        aaiTemp[i][0] = g_aaiMapCurrTetr[i][0];
-        aaiTemp[i][1] = g_aaiMapCurrTetr[i][1] + 1;
-    }
+        y = ppiCurrTetris[i][0] + aiPosition[0];
+        x = ppiCurrTetris[i][1] + aiPosition[1];
 
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_COL <= x || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+        if (MAP_COL <= x || (0 <= y && MP_TYPE_INVALID != ppiMap[y][x]))
         {
             return ME_MAX;
         }
     }
 
-    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
-    g_aiMapCurrTetrPosition[1]++;
+    DATA_SetCurrTetrisPosition(aiPosition);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionClock()
+MAP_EVENT_E map_ActionClock()
 {
-    int aaiTemp[4][2], x, y;
+    int aaiTemp[4][2], x, y, *piPosition;
+    int (*ppiMap)[MAP_COL];
 
-    for (int i = 0; i < 4; i++)
-    {
-        y = g_aaiMapCurrTetr[i][0] - g_aiMapCurrTetrPosition[0];
-        x = g_aaiMapCurrTetr[i][1] - g_aiMapCurrTetrPosition[1];
-
-        aaiTemp[i][0] = g_aiMapCurrTetrPosition[0] + x;
-        aaiTemp[i][1] = g_aiMapCurrTetrPosition[1] + 3 - y;
-    }
-
+    memcpy(aaiTemp, DATA_GetCurrTetris(), sizeof(aaiTemp));
     for (int i = 0; i < 4; i++)
     {
         y = aaiTemp[i][0];
         x = aaiTemp[i][1];
+
+        aaiTemp[i][0] = x;
+        aaiTemp[i][1] = 3 - y;
+    }
+
+    piPosition = DATA_GetCurrTetrisPosition();
+    ppiMap = DATA_GetMapCanvas();
+    for (int i = 0; i < 4; i++)
+    {
+        y = aaiTemp[i][0] + piPosition[0];
+        x = aaiTemp[i][1] + piPosition[1];
 
         if (MAP_COL <= x || 0 > x || -4 > y || MAP_ROW <= y ||
-                (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+                (0 <= y && MP_TYPE_INVALID != ppiMap[y][x]))
         {
             return ME_MAX;
         }
     }
 
-    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
+    DATA_SetCurrTetris(aaiTemp);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionCntrClk()
+MAP_EVENT_E map_ActionCntrClk()
 {
-    int aaiTemp[4][2], x, y;
+    int aaiTemp[4][2], x, y, *piPosition;
+    int (*ppiMap)[MAP_COL];
 
-    for (int i = 0; i < 4; i++)
-    {
-        y = g_aaiMapCurrTetr[i][0] - g_aiMapCurrTetrPosition[0];
-        x = g_aaiMapCurrTetr[i][1] - g_aiMapCurrTetrPosition[1];
-
-        aaiTemp[i][0] = g_aiMapCurrTetrPosition[0] + 3 - x;
-        aaiTemp[i][1] = g_aiMapCurrTetrPosition[1] + y;
-    }
-
+    memcpy(aaiTemp, DATA_GetCurrTetris(), sizeof(aaiTemp));
     for (int i = 0; i < 4; i++)
     {
         y = aaiTemp[i][0];
         x = aaiTemp[i][1];
 
+        aaiTemp[i][0] = 3 - x;
+        aaiTemp[i][1] = y;
+    }
+
+    piPosition = DATA_GetCurrTetrisPosition();
+    ppiMap = DATA_GetMapCanvas();
+    for (int i = 0; i < 4; i++)
+    {
+        y = aaiTemp[i][0] + piPosition[0];
+        x = aaiTemp[i][1] + piPosition[1];
+
         if (MAP_COL <= x || 0 > x || -4 > y || MAP_ROW <= y ||
-                (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+                (0 <= y && MP_TYPE_INVALID != ppiMap[y][x]))
         {
             return ME_MAX;
         }
     }
 
-    memcpy(g_aaiMapCurrTetr, aaiTemp, sizeof(g_aaiMapCurrTetr));
+    DATA_SetCurrTetris(aaiTemp);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionLanding()
+MAP_EVENT_E map_ActionLanding()
 {
-    int x, y;
+    int x, y, *piPosition;
+    int (*ppiMap)[MAP_COL];
+    int (*ppiCurrTetris)[2];
 
+    ppiMap = DATA_GetMapCanvas();
+    ppiCurrTetris = DATA_GetCurrTetris();
+    piPosition = DATA_GetCurrTetrisPosition();
     for (int i = 0; i < 4; i++)
     {
-        y = g_aaiMapCurrTetr[i][0];
-        x = g_aaiMapCurrTetr[i][1];
+        y = ppiCurrTetris[i][0] + piPosition[0];
+        x = ppiCurrTetris[i][1] + piPosition[1];
 
         if (0 <= y)
         {
-            g_aaiMap[y][x] = MP_TYPE_POINT;
+            ppiMap[y][x] = MP_TYPE_POINT;
         }
         else
         {
@@ -288,27 +285,28 @@ MAP_EVENT_E _map_ActionLanding()
         }
     }
 
-    map_SetBuff(g_aaiMapNextTetr);
-    map_UpdateNext();
+    map_SetCurrTetris(DATA_GetNextTetris());
+    map_UpdateNextTetris();
 
     return ME_ANNLT;
 }
 
-MAP_EVENT_E _map_ActionAnnlt(void)
+MAP_EVENT_E map_ActionAnnlt(void)
 {
-    int iCan, iCount;
-    int aaiMap[MAP_ROW][MAP_COL];
+    int aaiMap[MAP_ROW][MAP_COL], iCan, iCount;
+    int (*ppiMap)[MAP_COL];
 
     iCount = 0;
     memset(aaiMap, 0, sizeof(aaiMap));
 
+    ppiMap = DATA_GetMapCanvas();
     for (int y = MAP_ROW - 1; 0 <= y; y--)
     {
         iCan = 1;
         for (int x = 0; MAP_COL > x; x++)
         {
-            aaiMap[y + iCount][x] = g_aaiMap[y][x];
-            if (MP_TYPE_INVALID == g_aaiMap[y][x])
+            aaiMap[y + iCount][x] = ppiMap[y][x];
+            if (MP_TYPE_INVALID == ppiMap[y][x])
             {
                 iCan = 0;
             }
@@ -320,46 +318,46 @@ MAP_EVENT_E _map_ActionAnnlt(void)
         }
     }
 
-    if (!iCan)
+    if (iCount)
     {
-        memcpy(g_aaiMap, aaiMap, sizeof(g_aaiMap));
+        DATA_SetMapCanvas(aaiMap);
     }
 
     return ME_WAIT;
 }
 
-MAP_EVENT_E _map_TranWait()
+MAP_EVENT_E map_TranWait()
 {
-    g_enMapCurrState = MS_WAITING;
+    DATA_SetCurrState(MS_WAITING);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_TranPause()
+MAP_EVENT_E map_TranPause()
 {
-    g_enMapCurrState = MS_PAUSE;
+    DATA_SetCurrState(MS_PAUSE);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_TranFast()
+MAP_EVENT_E map_TranFast()
 {
-    g_enMapCurrState = MS_FAST;
+    DATA_SetCurrState(MS_FAST);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_TranOver()
+MAP_EVENT_E map_TranOver()
 {
-    g_enMapCurrState = MS_OVER;
+    DATA_SetCurrState(MS_OVER);
 
     return ME_MAX;
 }
 
-static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
+static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
         /* MS_UNINIT */
         {
-                _map_ActionInit,      /* ME_INIT       */
+                map_ActionInit,       /* ME_INIT       */
                 NULL,                 /* ME_DOWN       */
                 NULL,                 /* ME_LEFT       */
                 NULL,                 /* ME_RIGHT      */
@@ -367,7 +365,7 @@ static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
                 NULL,                 /* ME_CNTRCLK    */
                 NULL,                 /* ME_LANDING    */
                 NULL,                 /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
+                map_TranWait,         /* ME_WAIT       */
                 NULL,                 /* ME_PAUSETOG   */
                 NULL,                 /* ME_FASTTOG    */
                 NULL,                 /* ME_OVER       */
@@ -375,32 +373,32 @@ static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
         /* MS_WAITING */
         {
                 NULL,                 /* ME_INIT       */
-                _map_ActionDown,      /* ME_DOWN       */
-                _map_ActionLeft,      /* ME_LEFT       */
-                _map_ActionRight,     /* ME_RIGHT      */
-                _map_ActionClock,     /* ME_CLOCK      */
-                _map_ActionCntrClk,   /* ME_CNTRCLK    */
-                _map_ActionLanding,   /* ME_LANDING    */
-                _map_ActionAnnlt,     /* ME_ANNLT      */
+                map_ActionDown,       /* ME_DOWN       */
+                map_ActionLeft,       /* ME_LEFT       */
+                map_ActionRight,      /* ME_RIGHT      */
+                map_ActionClock,      /* ME_CLOCK      */
+                map_ActionCntrClk,    /* ME_CNTRCLK    */
+                map_ActionLanding,    /* ME_LANDING    */
+                map_ActionAnnlt,      /* ME_ANNLT      */
                 NULL,                 /* ME_WAIT       */
-                _map_TranPause,       /* ME_PAUSETOG   */
-                _map_TranFast,        /* ME_FASTTOG    */
-                _map_TranOver,        /* ME_OVER       */
+                map_TranPause,        /* ME_PAUSETOG   */
+                map_TranFast,         /* ME_FASTTOG    */
+                map_TranOver,         /* ME_OVER       */
         },
         /* MS_FAST */
         {
                 NULL,                 /* ME_INIT       */
-                _map_ActionDown,      /* ME_DOWN       */
+                map_ActionDown,       /* ME_DOWN       */
                 NULL,                 /* ME_LEFT       */
                 NULL,                 /* ME_RIGHT      */
                 NULL,                 /* ME_CLOCK      */
                 NULL,                 /* ME_CNTRCLK    */
-                _map_ActionLanding,   /* ME_LANDING    */
-                _map_ActionAnnlt,     /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
+                map_ActionLanding,    /* ME_LANDING    */
+                map_ActionAnnlt,      /* ME_ANNLT      */
+                map_TranWait,         /* ME_WAIT       */
                 NULL,                 /* ME_PAUSETOG   */
-                _map_TranWait,        /* ME_FASTTOG    */
-                _map_TranOver,        /* ME_OVER       */
+                map_TranWait,         /* ME_FASTTOG    */
+                map_TranOver,         /* ME_OVER       */
         },
         /* MS_PAUSE */
         {
@@ -413,13 +411,13 @@ static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
                 NULL,                 /* ME_LANDING    */
                 NULL,                 /* ME_ANNLT      */
                 NULL,                 /* ME_WAIT       */
-                _map_TranWait,        /* ME_PAUSETOG   */
+                map_TranWait,         /* ME_PAUSETOG   */
                 NULL,                 /* ME_FASTTOG    */
                 NULL,                 /* ME_OVER       */
         },
         /* MS_OVER */
         {
-                _map_ActionInit,      /* ME_INIT       */
+                map_ActionInit,       /* ME_INIT       */
                 NULL,                 /* ME_DOWN       */
                 NULL,                 /* ME_LEFT       */
                 NULL,                 /* ME_RIGHT      */
@@ -427,23 +425,25 @@ static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
                 NULL,                 /* ME_CNTRCLK    */
                 NULL,                 /* ME_LANDING    */
                 NULL,                 /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
+                map_TranWait,         /* ME_WAIT       */
                 NULL,                 /* ME_PAUSE      */
                 NULL,                 /* ME_FAST       */
                 NULL,                 /* ME_OVER       */
         },
 };
 
-int _map_FSM(MAP_EVENT_E enEvent)
+int map_FSM(MAP_EVENT_E enEvent)
 {
-    MAP_TRANSSTATE_PF pfTrans;
-    MAP_EVENT_E enTmpEvent = enEvent;
+    MAP_PROCEVENT_PF pfTrans;
+    MAP_EVENT_E enTmpEvent;
+    MAP_STATE_E enOldState;
 
-    LOG_DEBUG("Map FSM: current-state=%d, event=%d", g_enMapCurrState, enEvent);
+    enOldState = DATA_GetCurrState();
 
+    enTmpEvent = enEvent;
     while(ME_MAX != enTmpEvent)
     {
-        pfTrans = g_apfMapFSM[g_enMapCurrState][enTmpEvent];
+        pfTrans = g_apfMapFSM[enOldState][enTmpEvent];
         if (NULL != pfTrans)
         {
             enTmpEvent = pfTrans();
@@ -454,31 +454,35 @@ int _map_FSM(MAP_EVENT_E enEvent)
         }
     }
 
-    LOG_DEBUG("Map FSM: next-state=%d", g_enMapCurrState);
+    LOG_DEBUG("MAP-FSM: old-state=%d, event=%d, new-state=%d.",
+              enOldState, enEvent, DATA_GetCurrState());
 
-    _map_Show();
+    map_Show();
 
     return ERROR_SUCCESS;
 }
 
-int _map_ProcEventTime()
+int map_ProcEventTime()
 {
     g_iMapTimeCount++;
 
-    if (MAP_TIMECOUNT_MAX <= g_iMapTimeCount || MS_FAST == g_enMapCurrState)
-    {
-        g_iMapTimeCount = 0;
+    LOG_DEBUG("Time Input.");
 
-        _map_FSM(ME_DOWN);
+    if (MAP_TIMECOUNT_MAX <= g_iMapTimeCount || MS_FAST == DATA_GetCurrState())
+    {
+        map_FSM(ME_DOWN);
+
+        g_iMapTimeCount = 0;
     }
 
     return ERROR_SUCCESS;
 }
 
-int _map_ProcEventKey(int iChar)
+int map_ProcEventKey(int iChar)
 {
-    char szTip[20];
     MAP_EVENT_E enEvent;
+
+    LOG_DEBUG("Key(%d) Input.", iChar);
 
     switch (iChar) {
         case 'a':
@@ -510,31 +514,28 @@ int _map_ProcEventKey(int iChar)
             enEvent = ME_INIT;
             break;
         default:
-            sprintf(szTip, "Error key(%c)! ", iChar);
-            SHOW_ShowTip(szTip);
             enEvent = ME_MAX;
             break;
     }
 
-    _map_FSM(enEvent);
+    map_FSM(enEvent);
 
     return ERROR_SUCCESS;
 }
+
 int MAP_Input(MAP_INPUT_E enInput, void *pData)
 {
-    LOG_DEBUG("Input type(%d)", enInput);
-
     switch(enInput)
     {
         case MI_TIME:
         {
-            _map_ProcEventTime();
+            map_ProcEventTime();
             break;
         }
         case MI_KEY:
         {
             assert(NULL != pData);
-            _map_ProcEventKey(*(int *) pData);
+            map_ProcEventKey(*(int *) pData);
             break;
         }
         default:
@@ -549,9 +550,8 @@ int MAP_Input(MAP_INPUT_E enInput, void *pData)
 
 int MAP_Init()
 {
-    g_enMapCurrState = MS_UNINIT;
-
-    _map_FSM(ME_INIT);
+    DATA_SetCurrState(MS_UNINIT);
+    map_FSM(ME_INIT);
 
     return ERROR_SUCCESS;
 }

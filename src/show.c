@@ -16,10 +16,10 @@
 #include "map.h"
 #include "show.h"
 
-HANDLE g_hConsoleOut = NULL;
-int g_aaiCanvas[SHOW_ROW][SHOW_COL];
+HANDLE g_hShowConsoleOut = NULL;
+int g_aaiShowCanvas[SHOW_ROW][SHOW_COL];
 
-int _show_InitCanvas(void)
+int show_InitCanvas(void)
 {
     system("cls");
 
@@ -27,8 +27,8 @@ int _show_InitCanvas(void)
     {
         for(int x = 0; x < SHOW_COL; x++)
         {
-            g_aaiCanvas[y][x] = ' ';
-            printf("%c", g_aaiCanvas[y][x]);
+            g_aaiShowCanvas[y][x] = ' ';
+            printf("%c", g_aaiShowCanvas[y][x]);
         }
         printf("\n");
     }
@@ -36,34 +36,38 @@ int _show_InitCanvas(void)
     return ERROR_SUCCESS;
 }
 
-void _show_GotoXY(ushort x, ushort y)
+void show_GotoXY(ushort x, ushort y)
 {
     COORD pos;
 
     pos.X = x;
     pos.Y = y;
 
-    SetConsoleCursorPosition(g_hConsoleOut, pos);
+    SetConsoleCursorPosition(g_hShowConsoleOut, pos);
 
     return;
 }
 
 void _show_ShowChar(int c, ushort x, ushort y)
 {
-    _show_GotoXY(x, y);
+    show_GotoXY(x, y);
 
     printf("%c", c);
 
     return;
 }
 
-int _show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
+int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
 {
+    CONSOLE_SCREEN_BUFFER_INFO stInfo;
+
+    GetConsoleScreenBufferInfo(g_hShowConsoleOut, &stInfo);
+
     for(int y = 0; y < SHOW_ROW; y++)
     {
         for(int x = 0; x < SHOW_COL; x++)
         {
-            if (g_aaiCanvas[y][x] == aaiCanvas[y][x])
+            if (g_aaiShowCanvas[y][x] == aaiCanvas[y][x])
             {
                 continue;
             }
@@ -72,13 +76,15 @@ int _show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
         }
     }
 
+    SetConsoleCursorPosition(g_hShowConsoleOut, stInfo.dwCursorPosition);
+
     return ERROR_SUCCESS;
 }
 int SHOW_ShowMap(int aaiMap[MAP_ROW][MAP_COL])
 {
     int aaiCanvas[SHOW_ROW][SHOW_COL];
 
-    memcpy(aaiCanvas, g_aaiCanvas, sizeof(aaiCanvas));
+    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
 
     for(int y = 0; y < MAP_ROW && y < SHOW_ROW; y++)
     {
@@ -88,9 +94,9 @@ int SHOW_ShowMap(int aaiMap[MAP_ROW][MAP_COL])
         }
     }
 
-    _show_ShowCanvas(aaiCanvas);
+    show_ShowCanvas(aaiCanvas);
 
-    memcpy(g_aaiCanvas, aaiCanvas, sizeof(g_aaiCanvas));
+    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
 
     return ERROR_SUCCESS;
 }
@@ -99,7 +105,7 @@ int SHOW_ShowNext(int aaiNext[4][4])
 {
     int aaiCanvas[SHOW_ROW][SHOW_COL];
 
-    memcpy(aaiCanvas, g_aaiCanvas, sizeof(aaiCanvas));
+    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
 
     for(int y = 0; y < 4 && y + 2 < SHOW_ROW; y++)
     {
@@ -109,72 +115,42 @@ int SHOW_ShowNext(int aaiNext[4][4])
         }
     }
 
-    _show_ShowCanvas(aaiCanvas);
+    show_ShowCanvas(aaiCanvas);
 
-    memcpy(g_aaiCanvas, aaiCanvas, sizeof(g_aaiCanvas));
-
-    return ERROR_SUCCESS;
-}
-
-int SHOW_ShowTip(char *szTip)
-{
-    int aaiCanvas[SHOW_ROW][SHOW_COL];
-    uint uiLen;
-
-    memcpy(aaiCanvas, g_aaiCanvas, sizeof(aaiCanvas));
-
-    uiLen = strlen(szTip);
-    for(int y = SHOW_ROW - 1; y < SHOW_ROW; y++)
-    {
-        for(int x = 0; x < SHOW_COL; x++)
-        {
-            if (uiLen > x)
-            {
-                aaiCanvas[y][x] = szTip[x];
-            }
-            else
-            {
-                aaiCanvas[y][x] = 0;
-            }
-        }
-    }
-
-    _show_ShowCanvas(aaiCanvas);
-
-    memcpy(g_aaiCanvas, aaiCanvas, sizeof(g_aaiCanvas));
+    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
 
     return ERROR_SUCCESS;
 }
 
-void _show_SetCursorVisible(int iVisible)
+void show_SetCursorVisible(int iVisible)
 {
     CONSOLE_CURSOR_INFO stCursorInfo;
-    GetConsoleCursorInfo(g_hConsoleOut, &stCursorInfo);
+    GetConsoleCursorInfo(g_hShowConsoleOut, &stCursorInfo);
     stCursorInfo.bVisible = (BOOL) iVisible;
-    SetConsoleCursorInfo(g_hConsoleOut, &stCursorInfo);
+    SetConsoleCursorInfo(g_hShowConsoleOut, &stCursorInfo);
 }
 
 int SHOW_Init()
 {
     int iErrCode;
 
-    g_hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (NULL == g_hConsoleOut)
+    g_hShowConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (NULL == g_hShowConsoleOut)
     {
         return ERROR_FAILED;
     }
 
-    _show_SetCursorVisible(0);
+    show_SetCursorVisible(0);
 
-    iErrCode = _show_InitCanvas();
+    iErrCode = show_InitCanvas();
 
     return iErrCode;
 }
 
 void SHOW_Exit()
 {
-    _show_GotoXY(0, SHOW_ROW);
-    _show_SetCursorVisible(1);
+    show_GotoXY(0, SHOW_ROW);
+    show_SetCursorVisible(1);
 
-    g_hConsoleOut = NULL;
+    g_hShowConsoleOut = NULL;
 }
