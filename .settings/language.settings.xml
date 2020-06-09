@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project>
     	
-    <configuration id="cdt.managedbuild.config.gnu.mingw.exe.debug.2117596547" name="Debug">
+    <configuration id="cdt.managedbuild.toolchain.gnu.mingw.base.637347866.493793490.1931507451" name="Debug">
         		
         <extension point="org.eclipse.cdt.core.LanguageSettingsProvider">
             			
@@ -9,21 +9,23 @@
             			
             <provider-reference id="org.eclipse.cdt.core.ReferencedProjectsLanguageSettingsProvider" ref="shared-provider"/>
             			
-            <provider-reference id="org.eclipse.cdt.managedbuilder.core.MBSLanguageSettingsProvider" ref="shared-provider"/>
+            <provider copy-of="extension" id="org.eclipse.cdt.managedbuilder.core.GCCBuildCommandParser"/>
             			
-            <provider class="org.eclipse.cdt.managedbuilder.internal.language.settings.providers.GCCBuiltinSpecsDetectorMinGW" console="false" env-hash="-1360068463142449828" id="org.eclipse.cdt.managedbuilder.core.GCCBuiltinSpecsDetectorMinGW" keep-relative-paths="false" name="CDT GCC Built-in Compiler Settings MinGW" parameter="${COMMAND} ${FLAGS} -E -P -v -dD &quot;${INPUTS}&quot;" prefer-non-shared="true">
+            <provider class="org.eclipse.cdt.managedbuilder.internal.language.settings.providers.GCCBuiltinSpecsDetectorMinGW" console="false" env-hash="-1662842245280880880" id="org.eclipse.cdt.managedbuilder.core.GCCBuiltinSpecsDetectorMinGW" keep-relative-paths="false" name="CDT GCC Built-in Compiler Settings MinGW" parameter="${COMMAND} ${FLAGS} -E -P -v -dD &quot;${INPUTS}&quot;" prefer-non-shared="true">
                 				
                 <language-scope id="org.eclipse.cdt.core.gcc"/>
                 				
                 <language-scope id="org.eclipse.cdt.core.g++"/>
                 			
             </provider>
+            			
+            <provider-reference id="org.eclipse.cdt.managedbuilder.core.MBSLanguageSettingsProvider" ref="shared-provider"/>
             		
         </extension>
         	
     </configuration>
     	
-    <configuration id="cdt.managedbuild.config.gnu.mingw.exe.release.1970988522" name="Release">
+    <configuration id="cdt.managedbuild.toolchain.gnu.mingw.base.637347866.493793490.1737734836.144790141" name="Release">
         		
         <extension point="org.eclipse.cdt.core.LanguageSettingsProvider">
             			
@@ -31,15 +33,17 @@
             			
             <provider-reference id="org.eclipse.cdt.core.ReferencedProjectsLanguageSettingsProvider" ref="shared-provider"/>
             			
-            <provider-reference id="org.eclipse.cdt.managedbuilder.core.MBSLanguageSettingsProvider" ref="shared-provider"/>
+            <provider copy-of="extension" id="org.eclipse.cdt.managedbuilder.core.GCCBuildCommandParser"/>
             			
-            <provider class="org.eclipse.cdt.managedbuilder.internal.language.settings.providers.GCCBuiltinSpecsDetectorMinGW" console="false" env-hash="-1360068463142449828" id="org.eclipse.cdt.managedbuilder.core.GCCBuiltinSpecsDetectorMinGW" keep-relative-paths="false" name="CDT GCC Built-in Compiler Settings MinGW" parameter="${COMMAND} ${FLAGS} -E -P -v -dD &quot;${INPUTS}&quot;" prefer-non-shared="true">
+            <provider class="org.eclipse.cdt.managedbuilder.internal.language.settings.providers.GCCBuiltinSpecsDetectorMinGW" console="false" env-hash="-1662842245280880880" id="org.eclipse.cdt.managedbuilder.core.GCCBuiltinSpecsDetectorMinGW" keep-relative-paths="false" name="CDT GCC Built-in Compiler Settings MinGW" parameter="${COMMAND} ${FLAGS} -E -P -v -dD &quot;${INPUTS}&quot;" prefer-non-shared="true">
                 				
                 <language-scope id="org.eclipse.cdt.core.gcc"/>
                 				
                 <language-scope id="org.eclipse.cdt.core.g++"/>
                 			
             </provider>
+            			
+            <provider-reference id="org.eclipse.cdt.managedbuilder.core.MBSLanguageSettingsProvider" ref="shared-provider"/>
             		
         </extension>
         	

@@ -1,34 +1,41 @@
 /*
  * main.c
  *
- *  Created on: 2019年2月23日
+ *  Created on: 2019-02-23
  *      Author: Wind
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <conio.h>
-#include <winbase.h>
-#include <wincon.h>
-#include <windef.h>
-#include <winnt.h>
-#include <winuser.h>
 #include <assert.h>
 
+#include <windows.h>
+#include <conio.h>
+#include <pthread.h>
+
 #include "base.h"
+#include "list.h"
 #include "main.h"
 #include "map.h"
+#include "data.h"
 #include "show.h"
 #include "log.h"
+#include "queue.h"
 
-int g_iMainContinue;
+int g_iMainContinue = 1;
+
+QUE_HANDLE g_hMainQue = QUE_INVALID_HANDLE;
+uint  g_uiMainTimer = 0;
 
 void main_Exit(void);
 
 BOOL CALLBACK main_ConsoleCtrlHandler(DWORD ulEvent)
 {
-    LOG_WARN("Closed by console ctrl cvent(%lu).", ulEvent);
+    LOG_WARN("Closed by console ctrl event(%lu).", ulEvent);
 
     switch(ulEvent)
     {
@@ -52,10 +59,23 @@ BOOL CALLBACK main_ConsoleCtrlHandler(DWORD ulEvent)
     return TRUE;
 }
 
+void CALLBACK main_TimeEventCallback(uint uiTimeId, uint uiMsg, ulong ulUser,
+        ulong ul1, ulong ul2)
+{
+    int iRet;
+
+    LOG_DEBUG("Timer timeout.");
+    iRet = QUE_Write(g_hMainQue, (void *) 1);
+    return;
+}
+
 int main_Process(void)
 {
     int iErrCode = ERROR_SUCCESS;
     int iChar;
+    int iMsg;
+
+    iMsg = (int) QUE_Read(g_hMainQue);
 
     iChar = 0;
     while (kbhit())
@@ -72,10 +92,39 @@ int main_Process(void)
     return iErrCode;
 }
 
+int main_ProcessAll(void)
+{
+    int iErrCode;
+
+    while(g_iMainContinue)
+    {
+        iErrCode = main_Process();
+        if(ERROR_EXIT == iErrCode)
+        {
+            g_iMainContinue = 0;
+            iErrCode  = ERROR_SUCCESS;
+            LOG_ERROR("Exit by map.");
+        }
+        else if(ERROR_SUCCESS != iErrCode)
+        {
+            g_iMainContinue = 0;
+            LOG_ERROR("Failed to refresh map, and exit. error=%d");
+        }
+    }
+
+    return iErrCode;
+}
+
 int main_Init(void)
 {
     int iErrCode = ERROR_SUCCESS;
     int iRet;
+
+    g_hMainQue = QUE_Init(NULL);
+    if (QUE_INVALID_HANDLE == g_hMainQue)
+    {
+        return ERROR_FAILED;
+    }
 
     iErrCode |= LOG_Init();
 
@@ -95,6 +144,7 @@ int main_Init(void)
     }
 
     g_iMainContinue = 1;
+    g_uiMainTimer = timeSetEvent(MAIN_REFRESH_INTERVAL, 1, main_TimeEventCallback, 0, TIME_PERIODIC);
 
     return iErrCode;
 }
@@ -108,6 +158,9 @@ void main_Exit(void)
     SHOW_Exit();
     LOG_Exit();
 
+    QUE_Exit(g_hMainQue);
+    g_hMainQue = QUE_INVALID_HANDLE;
+
     return;
 }
 
@@ -116,31 +169,17 @@ int main(void)
     int iErrCode;
 
     iErrCode = main_Init();
-    if (ERROR_SUCCESS != iErrCode)
-    {
-        main_Exit();
-        return EXIT_SUCCESS;
-    }
 
-    while(g_iMainContinue)
+    if (ERROR_SUCCESS == iErrCode)
     {
-        Sleep(MAIN_REFRESH_INTERVAL);
-
-        iErrCode = main_Process();
-        if(ERROR_EXIT == iErrCode)
-        {
-            g_iMainContinue = 0;
-            iErrCode  = ERROR_SUCCESS;
-            LOG_ERROR("Exit by map.");
-        }
-        else if(ERROR_SUCCESS != iErrCode)
-        {
-            g_iMainContinue = 0;
-            LOG_ERROR("Failed to refresh map, and exit. error=%d");
-        }
+        iErrCode = main_ProcessAll();
     }
 
     main_Exit();
 
     return EXIT_SUCCESS;
 }
+
+#ifdef __cplusplus
+}
+#endif

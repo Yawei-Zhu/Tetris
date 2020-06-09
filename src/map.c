@@ -16,9 +16,9 @@
 #include "base.h"
 #include "main.h"
 #include "map.h"
+#include "data.h"
 #include "show.h"
 #include "log.h"
-#include "data.h"
 
 typedef MAP_EVENT_E (*MAP_PROCEVENT_PF)(void);
 

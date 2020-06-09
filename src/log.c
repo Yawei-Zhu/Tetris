@@ -1,10 +1,9 @@
 /*
  * log.c
  *
- *  Created on: 2019年1月26日
+ *  Created on: 2019-01-26
  *      Author: Wind
  */
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,35 +20,39 @@
 #define LOG_TIMESTRING_LEN      31
 #define LOG_LOGSTRING_LEN       511
 
-char  g_acLogFileName[256];
-LOG_LEVEL_E g_enLogPrintLevel;
+char g_acLogFileName[LOG_FILENAME_LEN + 1] =
+{ 0 };
+LOG_LEVEL_E g_enLogPrintLevel = LOG_LEVEL_NONE;
 
 typedef enum tagLog_TimeString_Type
 {
+    LOG_TIMESTR_TYPE_INVALID,
     LOG_TIMESTR_TYPE_NAME,
     LOG_TIMESTR_TYPE_LOG,
     LOG_TIMESTR_TYPE_MAX,
-}LOG_TIMESTR_TYPE_E;
+} LOG_TIMESTR_TYPE_E;
 
-int log_GetTimeString(LOG_TIMESTR_TYPE_E enType, uint uiTimeBuffLen, char *pcTimeBuff)
+int log_GetTimeString(LOG_TIMESTR_TYPE_E enType, uint uiTimeBuffLen,
+        char *pcTimeBuff)
 {
     int iRet;
     struct timeb stTimeMs;
     struct tm *pstTime;
-    char *apFormat[] = {"%04d%02d%02d%02d%02d%02d%03hd",
-                        "%04d-%02d-%02d %02d:%02d:%02d.%03hd"};
+    char *apFormat[] =
+            { "", "%04d%02d%02d%02d%02d%02d%03hd",
+                    "%04d-%02d-%02d %02d:%02d:%02d.%03hd" };
 
     assert(NULL != pcTimeBuff);
 
-    /* 获取当前时间 */
+    /* ��ȡϵͳʱ�� */
     memset(&stTimeMs, 0, sizeof(stTimeMs));
     ftime(&stTimeMs);
     pstTime = localtime(&stTimeMs.time);
 
     iRet = snprintf(pcTimeBuff, uiTimeBuffLen, apFormat[enType],
-                    1900 + pstTime->tm_year, 1 + pstTime->tm_mon,
-                    pstTime->tm_mday, pstTime->tm_hour, pstTime->tm_min,
-                    pstTime->tm_sec, stTimeMs.millitm);
+            1900 + pstTime->tm_year, 1 + pstTime->tm_mon, pstTime->tm_mday,
+            pstTime->tm_hour, pstTime->tm_min, pstTime->tm_sec,
+            stTimeMs.millitm);
 
     return iRet;
 }
@@ -62,10 +65,10 @@ int log_GetFileName(uint uiNameBuffLen, char *pcNameBuff)
     assert(NULL != pcNameBuff);
 
     szTimeStr[0] = 0;
-    (void) log_GetTimeString(LOG_TIMESTR_TYPE_NAME, sizeof(szTimeStr), szTimeStr);
+    (void) log_GetTimeString(LOG_TIMESTR_TYPE_NAME, sizeof(szTimeStr),
+            szTimeStr);
 
-    iRet = snprintf(pcNameBuff, uiNameBuffLen,
-                    "E:\\root\\var\\tetris.log"); //_%s.log", szTimeStr);
+    iRet = snprintf(pcNameBuff, uiNameBuffLen, "E:\\root\\var\\tetris.log"); //_%s.log", szTimeStr);
 
     return iRet;
 }
@@ -90,14 +93,15 @@ void LOG_Print(LOG_LEVEL_E enLevel, char *szFormat, ...)
     va_list pstArgs;
     char szTime[LOG_TIMESTRING_LEN + 1];
     char szLog[LOG_LOGSTRING_LEN + 1];
-    char *apLevel[] = {"", "ERROR", "WARN", "INFO", "DEBUG"};
+    char *apLevel[] =
+    { "", "ERROR", "WARN", "INFO", "DEBUG" };
 
     if (!log_IsNeedPrint(enLevel))
     {
         return;
     }
 
-    pstLogFile = fopen(g_acLogFileName, "w+");
+    pstLogFile = fopen(g_acLogFileName, "a+");
     if (NULL == pstLogFile)
     {
         return;

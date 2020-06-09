@@ -1,23 +1,28 @@
 /*
  * data.h
  *
- *  Created on: 2018Âπ¥9Êúà14Êó•
+ *  Created on: 2018-09-14
  *      Author: Wind
  */
 
 #ifndef DATA_H_
 #define DATA_H_
 
+#define DATA_TETRIS_NUM 7
+
+#define TLV_BUFFLEN_MAX 65535
+
+#define MAP_ROW 20
+#define MAP_COL 10
+
 typedef struct tagDataRun
 {
     int aaiMapCanvas[MAP_ROW][MAP_COL];
     int aaiNextTetris[4][2];
     int aaiCurrTetris[4][2];
-    int aiCurrTetrisPosition[2]; /* ÂùêÊ†á(x, y) */
+    int aiCurrTetrisPosition[2]; /* ◊¯±Í(x, y) */
     MAP_STATE_E enCurrState;
 }DATA_RUN_S;
-
-#define DATA_TETRIS_NUM 7
 
 int  DATA_Init(void);
 void DATA_Exit(void);

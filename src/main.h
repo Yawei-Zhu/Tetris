@@ -1,7 +1,7 @@
 /*
  * main.h
  *
- *  Created on: 2019年2月23日
+ *  Created on: 2019-02-23
  *      Author: Wind
  */
 

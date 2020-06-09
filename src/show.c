@@ -1,7 +1,7 @@
 /*
  * show.c
  *
- *  Created on: 2018年9月2日
+ *  Created on: 2018-09-02
  *      Author: Wind
  */
 
@@ -13,11 +13,14 @@
 #include <wincon.h>
 
 #include "base.h"
+#include "main.h"
 #include "map.h"
+#include "data.h"
 #include "show.h"
 
 HANDLE g_hShowConsoleOut = NULL;
 int g_aaiShowCanvas[SHOW_ROW][SHOW_COL];
+int g_iShowCursorVisible = 0;
 
 int show_InitCanvas(void)
 {
@@ -122,12 +125,17 @@ int SHOW_ShowNext(int aaiNext[4][4])
     return ERROR_SUCCESS;
 }
 
-void show_SetCursorVisible(int iVisible)
+int show_SetCursorVisible(int iVisible)
 {
+    int iOldVisible;
     CONSOLE_CURSOR_INFO stCursorInfo;
+
     GetConsoleCursorInfo(g_hShowConsoleOut, &stCursorInfo);
+    iOldVisible = (int) stCursorInfo.bVisible;
     stCursorInfo.bVisible = (BOOL) iVisible;
     SetConsoleCursorInfo(g_hShowConsoleOut, &stCursorInfo);
+
+    return iOldVisible;
 }
 
 int SHOW_Init()
@@ -140,7 +148,7 @@ int SHOW_Init()
         return ERROR_FAILED;
     }
 
-    show_SetCursorVisible(0);
+    g_iShowCursorVisible = show_SetCursorVisible(0);
 
     iErrCode = show_InitCanvas();
 
@@ -150,7 +158,7 @@ int SHOW_Init()
 void SHOW_Exit()
 {
     show_GotoXY(0, SHOW_ROW);
-    show_SetCursorVisible(1);
+    show_SetCursorVisible(g_iShowCursorVisible);
 
     g_hShowConsoleOut = NULL;
 }

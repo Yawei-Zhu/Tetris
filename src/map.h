@@ -8,9 +8,6 @@
 #ifndef MAP_H_
 #define MAP_H_
 
-#define MAP_ROW 20
-#define MAP_COL 10
-
 typedef enum tagMapPixel_Type{
 	MP_TYPE_INVALID = 0,
 	MP_TYPE_POINT,

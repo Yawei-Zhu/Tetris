@@ -1,20 +1,19 @@
 /*
  * data.c
  *
- *  Created on: 2019年3月3日
+ *  Created on: 2019-03-03
  *      Author: Wind
  */
 
 
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #include "base.h"
 #include "main.h"
+#include "tlv.h"
 #include "map.h"
 #include "data.h"
-#include "log.h"
 
 
 int g_aaaiDataAllTetris[DATA_TETRIS_NUM][4][2] =
@@ -97,6 +96,11 @@ rpint DATA_GetRandTetris(void)
 
 int  DATA_Save(void)
 {
+    char acBuff[TLV_BUFFLEN_MAX];
+    uint uiTotalLen;
+    uint uiDataLen;
+
+
     return ERROR_SUCCESS;
 }
 
