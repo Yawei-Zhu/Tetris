@@ -5,6 +5,10 @@
  *      Author: 10248
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <string.h>
 #include <pthread.h>
 
@@ -34,38 +38,36 @@ typedef struct tagQueue
 typedef struct tagQueueNode
 {
     DL_NODE_S stNode;
+    uint uiMsgType;
     void *pData;
 } QUE_NODE_S;
 
 #define QUE_MAX_NUM 10UL
+
 QUE_S *g_apstQueArray[QUE_MAX_NUM] =
-{ 0 };
+        { 0 };
 pthread_mutex_t g_stQueMutex = PTHREAD_MUTEX_INITIALIZER;
 
 void que_FreeAll(QUE_S *pstQueue)
 {
-    DL_NODE_S *pstCurr, *pstNext;
+    DL_NODE_S *pstCurr;
     QUE_NODE_S *pstNode;
 
     pstQueue->uiProcCount++;
     pthread_mutex_unlock(&g_stQueMutex);
 
     pthread_mutex_lock(&pstQueue->stMutex);
-    DL_FOREACH_NEXT(&pstQueue->stQueue, pstCurr, pstNext)
+    while ((pstCurr = DL_DelFirst(&pstQueue->stQueue)) != NULL)
     {
+        pstQueue->uiSize--;
         pstNode = CONTAINER(pstCurr, QUE_NODE_S, stNode);
         if (pstQueue->pfFree != NULL)
         {
-            pthread_mutex_unlock(&pstQueue->stMutex);
-            pstQueue->pfFree(pstNode->pData);
-            pthread_mutex_lock(&pstQueue->stMutex);
+            pstQueue->pfFree(pstNode->uiMsgType, pstNode->pData);
         }
         free(pstNode);
         pstNode = NULL;
     }
-
-    DL_Init(&pstQueue->stQueue);
-    pstQueue->uiSize = 0;
     pthread_mutex_unlock(&pstQueue->stMutex);
 
     pthread_mutex_lock(&g_stQueMutex);
@@ -163,47 +165,16 @@ void QUE_Exit(QUE_HANDLE hQueue)
     return;
 }
 
-void QUE_Clear(QUE_HANDLE hQueue)
+int QUE_Read(QUE_HANDLE hQueue, QUE_MSG_S *pstMsg, unsigned int uiTime)
 {
     QUE_S *pstQueue;
+    QUE_NODE_S *pstNode = NULL;
+    struct timespec stTime;
+    int iRet = -1;
 
-    if (hQueue >= QUE_MAX_NUM)
+    if ((hQueue >= QUE_MAX_NUM) || (NULL == pstMsg))
     {
-        return;
-    }
-
-    pthread_mutex_lock(&g_stQueMutex);
-    pstQueue = g_apstQueArray[(int) hQueue];
-    if (pstQueue == NULL)
-    {
-        pthread_mutex_unlock(&g_stQueMutex);
-        return;
-    }
-
-    que_FreeAll(pstQueue);
-
-    if (pstQueue->enState == QS_TODELETE)
-    {
-        if (pstQueue->uiProcCount == 0)
-        {
-            free(pstQueue);
-            g_apstQueArray[(int) hQueue] = NULL;
-        }
-    }
-    pthread_mutex_unlock(&g_stQueMutex);
-
-    return;
-}
-
-void* QUE_Read(QUE_HANDLE hQueue)
-{
-    QUE_S *pstQueue;
-    QUE_NODE_S *pstNode;
-    void *pData;
-
-    if (hQueue >= QUE_MAX_NUM)
-    {
-        return NULL;
+        return -1;
     }
 
     pthread_mutex_lock(&g_stQueMutex);
@@ -211,69 +182,90 @@ void* QUE_Read(QUE_HANDLE hQueue)
     if (pstQueue == NULL)
     {
         pthread_mutex_unlock(&g_stQueMutex);
-        return NULL;
+        return -1;
     }
 
     if (pstQueue->enState == QS_TODELETE)
     {
         pthread_mutex_unlock(&g_stQueMutex);
-        return NULL;
+        return -1;
     }
     pstQueue->uiProcCount++;
     pthread_mutex_unlock(&g_stQueMutex);
 
     pthread_mutex_lock(&pstQueue->stMutex);
-    while (DL_IsEmpty(&pstQueue->stQueue))
+    if (DL_IsEmpty(&pstQueue->stQueue))
     {
-        pthread_mutex_unlock(&pstQueue->stMutex);
-
-        pthread_mutex_lock(&g_stQueMutex);
-        if (pstQueue->enState == QS_TODELETE)
+        if (uiTime != QUE_TIME_NOTWAIT)
         {
-            pstQueue->uiProcCount--;
-            if (pstQueue->uiProcCount == 0)
+            if (uiTime == QUE_TIME_WAITFOREVER)
             {
-                que_FreeAll(pstQueue);
-                free(pstQueue);
-                g_apstQueArray[(int) hQueue] = NULL;
+                pthread_cond_wait(&pstQueue->stReadCond, &pstQueue->stMutex);
+            }
+            else if (uiTime > QUE_TIME_NOTWAIT)
+            {
+                stTime.tv_sec = uiTime / 1000;
+                stTime.tv_nsec = uiTime % 1000 * 1000000;
+                pthread_cond_timedwait(&pstQueue->stReadCond,
+                        &pstQueue->stMutex,
+                        &stTime);
+            }
+            pthread_mutex_unlock(&pstQueue->stMutex);
+
+            pthread_mutex_lock(&g_stQueMutex);
+            if (pstQueue->enState == QS_TODELETE)
+            {
+                pstQueue->uiProcCount--;
+                if (pstQueue->uiProcCount == 0)
+                {
+                    que_FreeAll(pstQueue);
+                    free(pstQueue);
+                    g_apstQueArray[(int) hQueue] = NULL;
+                }
+                pthread_mutex_unlock(&g_stQueMutex);
+                return -1;
             }
             pthread_mutex_unlock(&g_stQueMutex);
-            return NULL;
-        }
-        pthread_mutex_unlock(&g_stQueMutex);
 
-        pthread_mutex_lock(&pstQueue->stMutex);
-        pthread_cond_wait(&pstQueue->stReadCond, &pstQueue->stMutex);
+            pthread_mutex_lock(&pstQueue->stMutex);
+        }
     }
-    pstNode = CONTAINER(DL_DelFirst(&pstQueue->stQueue), QUE_NODE_S, stNode);
+
+    if (!DL_IsEmpty(&pstQueue->stQueue))
+    {
+        pstNode = CONTAINER(DL_DelFirst(&pstQueue->stQueue), QUE_NODE_S,
+                stNode);
+        pstQueue->uiSize--;
+    }
     pthread_mutex_unlock(&pstQueue->stMutex);
 
-    pData = pstNode->pData;
-    free(pstNode);
-
+    if (NULL != pstNode)
+    {
+        pstMsg->uiMsgType = pstNode->uiMsgType;
+        pstMsg->pData = pstNode->pData;
+        free(pstNode);
+        iRet = 0;
+    }
 
     pthread_mutex_lock(&g_stQueMutex);
     pstQueue->uiProcCount--;
-    if (pstQueue->enState == QS_TODELETE)
+    if ((pstQueue->enState == QS_TODELETE) && (pstQueue->uiProcCount == 0))
     {
-        if (pstQueue->uiProcCount == 0)
-        {
-            que_FreeAll(pstQueue);
-            free(pstQueue);
-            g_apstQueArray[(int) hQueue] = NULL;
-        }
+        que_FreeAll(pstQueue);
+        free(pstQueue);
+        g_apstQueArray[(int) hQueue] = NULL;
     }
     pthread_mutex_unlock(&g_stQueMutex);
 
-    return pData;
+    return iRet;
 }
 
-int QUE_Write(QUE_HANDLE hQueue, void *pData)
+int QUE_Write(QUE_HANDLE hQueue, QUE_MSG_S *pstMsg)
 {
     QUE_S *pstQueue;
     QUE_NODE_S *pstNode;
 
-    if (hQueue >= QUE_MAX_NUM)
+    if ((hQueue >= QUE_MAX_NUM) || (NULL == pstMsg))
     {
         return -1;
     }
@@ -294,11 +286,12 @@ int QUE_Write(QUE_HANDLE hQueue, void *pData)
     pstQueue->uiProcCount++;
     pthread_mutex_unlock(&g_stQueMutex);
 
-    pstNode = (QUE_NODE_S *) malloc(sizeof(QUE_NODE_S));
+    pstNode = (QUE_NODE_S*) malloc(sizeof(QUE_NODE_S));
     if (NULL != pstNode)
     {
         DL_InitNode(&pstNode->stNode);
-        pstNode->pData = pData;
+        pstNode->uiMsgType = pstMsg->uiMsgType;
+        pstNode->pData = pstMsg->pData;
 
         pthread_mutex_lock(&pstQueue->stMutex);
         DL_AddLast(&pstQueue->stQueue, &pstNode->stNode);
@@ -309,14 +302,11 @@ int QUE_Write(QUE_HANDLE hQueue, void *pData)
 
     pthread_mutex_lock(&g_stQueMutex);
     pstQueue->uiProcCount--;
-    if (pstQueue->enState == QS_TODELETE)
+    if ((pstQueue->enState == QS_TODELETE) && (pstQueue->uiProcCount == 0))
     {
-        if (pstQueue->uiProcCount == 0)
-        {
-            que_FreeAll(pstQueue);
-            free(pstQueue);
-            g_apstQueArray[(int) hQueue] = NULL;
-        }
+        que_FreeAll(pstQueue);
+        free(pstQueue);
+        g_apstQueArray[(int) hQueue] = NULL;
     }
     pthread_mutex_unlock(&g_stQueMutex);
 
@@ -324,3 +314,6 @@ int QUE_Write(QUE_HANDLE hQueue, void *pData)
 
 }
 
+#ifdef __cplusplus
+}
+#endif

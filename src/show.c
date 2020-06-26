@@ -5,12 +5,14 @@
  *      Author: Wind
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <winbase.h>
-#include <winnt.h>
-#include <wincon.h>
+#include <assert.h>
+#include <windows.h>
 
 #include "base.h"
 #include "main.h"
@@ -18,25 +20,87 @@
 #include "data.h"
 #include "show.h"
 
+/*
+ * ©°©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©´
+ * ©¦....................©¦ ©°©¤©¤©¤©¤©¤©¤©¤©¤©´
+ * ©¦....................©¦ ©¦........©¦
+ * ©¦....................©¦ ©¦........©¦
+ * ©¦....................©¦ ©¦........©¦
+ * ©¦....................©¦ ©¦........©¦
+ * ©¦....................©¦ ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¼
+ * ©¦....................©¦  Score
+ * ©¦....................©¦  0
+ * ©¦....................©¦
+ * ©¦....................©¦  Level
+ * ©¦....................©¦  1
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¦....................©¦
+ * ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¼
+
+ * ©°©¤©´
+ * ©¦ ©¦
+ * ©¸©¤©¼
+ */
+#define SHOW_CANVAS_S  "  "
+#define SHOW_CANVAS_H  "©¤"
+#define SHOW_CANVAS_V  "©¦"
+#define SHOW_CANVAS_LT "©°"
+#define SHOW_CANVAS_LB "©¸"
+#define SHOW_CANVAS_RT "©´"
+#define SHOW_CANVAS_RB "©¼"
+#define SHOW_CANVAS_INVALID "  "
+#define SHOW_CANVAS_POINT   "¡ö"
+
+#define SHOW_PIXEL_LEN 2
+
+#define SHOW_ROW (DATA_MAP_ROW + 2)
+#define SHOW_COL (DATA_MAP_COL + DATA_NEXT_COL + 5)
+
+#define SHOW_MAP_X_MIN 0
+#define SHOW_MAP_X_MAX (SHOW_MAP_X_MIN + DATA_MAP_COL + 1)
+#define SHOW_MAP_Y_MIN 0
+#define SHOW_MAP_Y_MAX (SHOW_MAP_Y_MIN + DATA_MAP_ROW + 1)
+
+#define SHOW_NEXT_X_MIN (DATA_MAP_COL + 3)
+#define SHOW_NEXT_X_MAX (SHOW_NEXT_X_MIN + DATA_NEXT_COL + 1)
+#define SHOW_NEXT_Y_MIN 1
+#define SHOW_NEXT_Y_MAX (SHOW_NEXT_Y_MIN + DATA_NEXT_ROW + 1)
+
 HANDLE g_hShowConsoleOut = NULL;
-int g_aaiShowCanvas[SHOW_ROW][SHOW_COL];
+int g_aaiShowCanvas[SHOW_ROW][SHOW_COL] = {0};
 int g_iShowCursorVisible = 0;
 
-int show_InitCanvas(void)
+char *show_Sharp(int iPixel)
 {
-    system("cls");
-
-    for(int y = 0; y < SHOW_ROW; y++)
+    switch(SHOW_SHARP(iPixel))
     {
-        for(int x = 0; x < SHOW_COL; x++)
-        {
-            g_aaiShowCanvas[y][x] = ' ';
-            printf("%c", g_aaiShowCanvas[y][x]);
-        }
-        printf("\n");
+    case SHOW_SHARP_S:
+        return SHOW_CANVAS_S;
+    case SHOW_SHARP_H:
+        return SHOW_CANVAS_H;
+    case SHOW_SHARP_V:
+        return SHOW_CANVAS_V;
+    case SHOW_SHARP_LT:
+        return SHOW_CANVAS_LT;
+    case SHOW_SHARP_LB:
+        return SHOW_CANVAS_LB;
+    case SHOW_SHARP_RT:
+        return SHOW_CANVAS_RT;
+    case SHOW_SHARP_RB:
+        return SHOW_CANVAS_RB;
+    case SHOW_SHARP_INVALID:
+        return SHOW_CANVAS_INVALID;
+    case SHOW_SHARP_POINT:
+    default:
+        return SHOW_CANVAS_POINT;
     }
-
-    return ERROR_SUCCESS;
 }
 
 void show_GotoXY(ushort x, ushort y)
@@ -51,16 +115,18 @@ void show_GotoXY(ushort x, ushort y)
     return;
 }
 
-void _show_ShowChar(int c, ushort x, ushort y)
+void show_ShowPixel(int pixel, ushort x, ushort y)
 {
-    show_GotoXY(x, y);
+    show_GotoXY(x * SHOW_PIXEL_LEN, y);
 
-    printf("%c", c);
+    SetConsoleTextAttribute(g_hShowConsoleOut, SHOW_COLOR(pixel));
+    printf("%s", show_Sharp(pixel));
+    SetConsoleTextAttribute(g_hShowConsoleOut, SHOW_COLOR_DEFAULT);
 
     return;
 }
 
-int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
+int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL], int iForce)
 {
     CONSOLE_SCREEN_BUFFER_INFO stInfo;
 
@@ -70,12 +136,12 @@ int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
     {
         for(int x = 0; x < SHOW_COL; x++)
         {
-            if (g_aaiShowCanvas[y][x] == aaiCanvas[y][x])
+            if (g_aaiShowCanvas[y][x] == aaiCanvas[y][x] && !iForce)
             {
                 continue;
             }
 
-            _show_ShowChar(aaiCanvas[y][x], x, y);
+            show_ShowPixel(aaiCanvas[y][x], x, y);
         }
     }
 
@@ -83,44 +149,39 @@ int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL])
 
     return ERROR_SUCCESS;
 }
-int SHOW_ShowMap(int aaiMap[MAP_ROW][MAP_COL])
+
+int show_InitCanvas(void)
 {
-    int aaiCanvas[SHOW_ROW][SHOW_COL];
+    int x, y;
+    system("cls");
 
-    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
-
-    for(int y = 0; y < MAP_ROW && y < SHOW_ROW; y++)
+    for (y = 0; y < SHOW_ROW; y++)
     {
-        for(int x = 0; x < MAP_COL && x < SHOW_COL; x++)
+        for (x = 0; x < SHOW_COL; x++)
         {
-            aaiCanvas[y][x] = aaiMap[y][x];
+            g_aaiShowCanvas[y][x] = SHOW_SHARP_S;
         }
     }
 
-    show_ShowCanvas(aaiCanvas);
+    g_aaiShowCanvas[SHOW_MAP_Y_MIN][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
+    g_aaiShowCanvas[SHOW_MAP_Y_MAX][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
+    g_aaiShowCanvas[SHOW_MAP_Y_MIN][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
+    g_aaiShowCanvas[SHOW_MAP_Y_MAX][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
+    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++) g_aaiShowCanvas[SHOW_MAP_Y_MIN][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++) g_aaiShowCanvas[SHOW_MAP_Y_MAX][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
 
-    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+    g_aaiShowCanvas[SHOW_NEXT_Y_MIN][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
+    g_aaiShowCanvas[SHOW_NEXT_Y_MAX][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
+    g_aaiShowCanvas[SHOW_NEXT_Y_MIN][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
+    g_aaiShowCanvas[SHOW_NEXT_Y_MAX][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
+    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++) g_aaiShowCanvas[SHOW_NEXT_Y_MIN][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++) g_aaiShowCanvas[SHOW_NEXT_Y_MAX][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
 
-    return ERROR_SUCCESS;
-}
-
-int SHOW_ShowNext(int aaiNext[4][4])
-{
-    int aaiCanvas[SHOW_ROW][SHOW_COL];
-
-    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
-
-    for(int y = 0; y < 4 && y + 2 < SHOW_ROW; y++)
-    {
-        for(int x = 0; x < 4 && x + MAP_COL + 2 < SHOW_COL; x++)
-        {
-            aaiCanvas[y + 2][x + MAP_COL + 2] = aaiNext[y][x];
-        }
-    }
-
-    show_ShowCanvas(aaiCanvas);
-
-    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+    show_ShowCanvas(g_aaiShowCanvas, 1);
 
     return ERROR_SUCCESS;
 }
@@ -136,6 +197,54 @@ int show_SetCursorVisible(int iVisible)
     SetConsoleCursorInfo(g_hShowConsoleOut, &stCursorInfo);
 
     return iOldVisible;
+}
+
+int SHOW_ShowMap(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
+{
+    int x, y;
+    int aaiCanvas[SHOW_ROW][SHOW_COL];
+
+    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
+
+    for(y = 0; y < DATA_MAP_ROW && y < SHOW_ROW; y++)
+    {
+        for(x = 0; x < DATA_MAP_COL && x < SHOW_COL; x++)
+        {
+            aaiCanvas[y + SHOW_MAP_Y_MIN + 1][x + SHOW_MAP_X_MIN + 1] = aaiMap[y][x];
+        }
+        assert(x + SHOW_MAP_X_MIN + 1 == SHOW_MAP_X_MAX);
+    }
+    assert(y + SHOW_MAP_Y_MIN + 1 == SHOW_MAP_Y_MAX);
+
+    show_ShowCanvas(aaiCanvas, 0);
+
+    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+
+    return ERROR_SUCCESS;
+}
+
+int SHOW_ShowNext(int aaiNext[DATA_NEXT_ROW][DATA_NEXT_COL])
+{
+    int x, y;
+    int aaiCanvas[SHOW_ROW][SHOW_COL];
+
+    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
+
+    for(y = 0; y < DATA_NEXT_ROW; y++)
+    {
+        for(x = 0; x < DATA_NEXT_COL; x++)
+        {
+            aaiCanvas[y + SHOW_NEXT_Y_MIN + 1][x + SHOW_NEXT_X_MIN + 1] = aaiNext[y][x];
+        }
+        assert(x + SHOW_NEXT_X_MIN + 1 == SHOW_NEXT_X_MAX);
+    }
+    assert(y + SHOW_NEXT_Y_MIN + 1 == SHOW_NEXT_Y_MAX);
+
+    show_ShowCanvas(aaiCanvas, 0);
+
+    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+
+    return ERROR_SUCCESS;
 }
 
 int SHOW_Init()
@@ -162,3 +271,7 @@ void SHOW_Exit()
 
     g_hShowConsoleOut = NULL;
 }
+
+#ifdef __cplusplus
+}
+#endif

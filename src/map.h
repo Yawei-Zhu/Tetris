@@ -8,16 +8,12 @@
 #ifndef MAP_H_
 #define MAP_H_
 
-typedef enum tagMapPixel_Type{
-	MP_TYPE_INVALID = 0,
-	MP_TYPE_POINT,
-}MP_TYPE_E;
-
 typedef enum tagMapState
 {
-    MS_UNINIT,
+    MS_INIT,
     MS_WAITING,
     MS_FAST,
+    MS_REMOVE ,
     MS_PAUSE,
     MS_OVER,
     MS_MAX,
@@ -26,18 +22,17 @@ typedef enum tagMapState
 typedef enum tagMapEvent
 {
     ME_INIT,
+    ME_START,
+    ME_TICK,
     ME_DOWN,
     ME_LEFT,
     ME_RIGHT,
     ME_CLOCK,
     ME_CNTRCLK,
-    ME_LANDING,
-    ME_ANNLT,
+    ME_LAND,
 
-    ME_WAIT,
     ME_PAUSETOG,
     ME_FASTTOG,
-    ME_OVER,
     ME_MAX,
 }MAP_EVENT_E;
 
@@ -51,8 +46,6 @@ typedef enum tagMapInput
 
 int  MAP_Init(void);
 void MAP_Exit(void);
-int  MAP_Input(MAP_INPUT_E enInput, void *pData);
-
-#define MAP_PIXEL2CHAR(mp) (MP_TYPE_INVALID == (mp) ? '.' : '#')
+int  MAP_ProcEvent(MAIN_EVENT_E enEvent, void *pData);
 
 #endif /* MAP_H_ */

@@ -11,7 +11,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <time.h>
-#include <sys\\timeb.h>
+#include <sys\\time.h>
 
 #include "base.h"
 #include "log.h"
@@ -36,7 +36,8 @@ int log_GetTimeString(LOG_TIMESTR_TYPE_E enType, uint uiTimeBuffLen,
         char *pcTimeBuff)
 {
     int iRet;
-    struct timeb stTimeMs;
+    time_t stSecond;
+    struct timeval stTime;
     struct tm *pstTime;
     char *apFormat[] =
             { "", "%04d%02d%02d%02d%02d%02d%03hd",
@@ -45,14 +46,15 @@ int log_GetTimeString(LOG_TIMESTR_TYPE_E enType, uint uiTimeBuffLen,
     assert(NULL != pcTimeBuff);
 
     /* 获取系统时间 */
-    memset(&stTimeMs, 0, sizeof(stTimeMs));
-    ftime(&stTimeMs);
-    pstTime = localtime(&stTimeMs.time);
+    memset(&stTime, 0, sizeof(stTime));
+    gettimeofday(&stTime, NULL);
+    stSecond = stTime.tv_sec;
+    pstTime = localtime(&stSecond);
 
     iRet = snprintf(pcTimeBuff, uiTimeBuffLen, apFormat[enType],
             1900 + pstTime->tm_year, 1 + pstTime->tm_mon, pstTime->tm_mday,
             pstTime->tm_hour, pstTime->tm_min, pstTime->tm_sec,
-            stTimeMs.millitm);
+            stTime.tv_usec / 1000);
 
     return iRet;
 }
