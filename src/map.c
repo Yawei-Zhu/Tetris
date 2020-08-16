@@ -5,432 +5,670 @@
  *      Author: Wind
  */
 
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 #include "base.h"
+#include "main.h"
 #include "map.h"
+#include "data.h"
 #include "show.h"
+#include "log.h"
 
-typedef MAP_EVENT_E (*MAP_TRANSSTATE_PF)(void);
-#define MAP_PIXEL2CHAR(mp) (MP_TYPE_INVALID == (mp) ? '.' : '#')
+typedef MAP_EVENT_E (*MAP_PROCEVENT_PF)(void);
 
-#define BLOCK_NUM 7
-#define MAP_TIMECOUNT_MAX 30
-
-static int g_aaiMap[MAP_ROW][MAP_COL];
-static int g_aaiNext[4][2];
-static int g_aaiBuff[4][2];
-static int g_aiPosition[2];
-static MAP_STATE_E g_enCurr;
-static int  g_iTimeCount;
-
-static int g_aaiAll[BLOCK_NUM][4][2] =
+void map_SetCurrTetris(DATA_TETRIS_S *pstTetris)
 {
-        {{0, 2}, {1, 2}, {2, 2}, {3, 2}},
-        {{0, 1}, {0, 2}, {1, 2}, {2, 2}},
-        {{0, 1}, {0, 2}, {1, 1}, {2, 1}},
-        {{1, 1}, {1, 2}, {2, 1}, {2, 2}},
-        {{0, 1}, {1, 1}, {1, 2}, {2, 2}},
-        {{0, 2}, {1, 1}, {1, 2}, {2, 1}},
-        {{1, 2}, {2, 1}, {2, 2}, {2, 3}},
-};
+    POINT_S stPosition;
+    int iMax;
 
-void _map_SetBuff(int aaiBuff[4][2])
-{
-    int dx, dy;
+    (void) DATA_SetCurrTetris(pstTetris);
 
-    memcpy(g_aaiBuff, aaiBuff, sizeof(g_aaiBuff));
-
-    dx = MAP_COL / 2 - 2;
-    dy = -4;
-
-    g_aiPosition[0] = dy;
-    g_aiPosition[1] = dx;
-
-    for(int i = 0; i < 4; i++)
+    iMax = pstTetris->astTetris[0].y;
+    for (int i = 1; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        g_aaiBuff[i][0] += dy;
-        g_aaiBuff[i][1] += dx;
+        if (iMax < pstTetris->astTetris[i].y)
+        {
+            iMax = pstTetris->astTetris[i].y;
+        }
     }
+
+    stPosition.y = 0 - iMax;
+    stPosition.x = DATA_MAP_COL / 2 - 2;
+    (void) DATA_SetCurrTetrisPos(&stPosition);
+
+    return;
 }
 
-void _map_SetNext(void)
+void map_Show(void)
 {
-    memcpy(g_aaiNext, g_aaiAll[rand() % BLOCK_NUM], sizeof(g_aaiNext));
-}
-void _map_Show(void)
-{
-    int aaiMap[MAP_ROW][MAP_COL], aaiNext[4][4];
+    int aiMap[DATA_MAP_ROW * DATA_MAP_COL], aiNext[DATA_TETRIS_ROW * DATA_TETRIS_COL];
     int x, y;
+    POINT_S *pstPosition;
+    DATA_TETRIS_S *pstTetris;
 
-    memcpy(aaiMap, g_aaiMap, sizeof(aaiMap));
+    memcpy(aiMap, DATA_GetMapCanvas(), sizeof(aiMap));
 
-    for (int i = 0; i < 4; i++)
+    pstTetris = DATA_GetCurrTetris();
+    pstPosition = DATA_GetCurrTetrisPos();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = g_aaiBuff[i][0];
-        x = g_aaiBuff[i][1];
-        if(0 <= y)
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
+        if (0 <= y)
         {
-            aaiMap[y][x] = MP_TYPE_POINT;
+            assert(0 <= y && y < DATA_MAP_ROW && 0 <= x && x < DATA_MAP_COL);
+            aiMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
         }
     }
 
-    for(y = 0; y < MAP_ROW; y++)
+    SHOW_ShowMap(aiMap);
+
+    pstTetris = DATA_GetNextTetris();
+    memset(aiNext, 0, sizeof(aiNext));
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        for(x = 0; x < MAP_COL; x++)
-        {
-            aaiMap[y][x] = MAP_PIXEL2CHAR(aaiMap[y][x]);
-        }
+        y = pstTetris->astTetris[i].y;
+        x = pstTetris->astTetris[i].x;
+        aiNext[DATA_INDEX_NEXT(y, x)] = pstTetris->iTetrisPixel;
     }
 
-    SHOW_ShowMap(aaiMap);
+    SHOW_ShowNext(aiNext);
 
-    memset(aaiNext, MAP_PIXEL2CHAR(MP_TYPE_INVALID), sizeof(aaiNext));
-    for (int i = 0; i < 4; i++)
-    {
-        y = g_aaiNext[i][0];
-        x = g_aaiNext[i][1];
-        aaiNext[y][x] = MAP_PIXEL2CHAR(MP_TYPE_POINT);
-    }
+    SHOW_ShowScore(DATA_PeekScore());
 
-    SHOW_ShowNext(aaiNext);
+    return;
 }
 
-MAP_EVENT_E _map_ActionInit()
+int map_RemoveRowMap(int aiMap[DATA_MAP_RXC])
 {
-    memset(g_aaiMap, 0, sizeof(g_aaiMap));
+    int iRemove, iCount;
+    int *piMap;
 
-    srand(time(0));
+    piMap = DATA_GetMapCanvas();
+    iCount = 0;
+    for (int y = DATA_MAP_ROW - 1; y >= 0; y--)
+    {
+        iRemove = 1;
+        for (int x = 0; x < DATA_MAP_COL; x++)
+        {
+            aiMap[DATA_INDEX_MAP(y + iCount, x)] = piMap[DATA_INDEX_MAP(y, x)];
+            if (SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)])
+            {
+                iRemove = 0;
+            }
+        }
 
-    _map_SetBuff(g_aaiAll[rand() % BLOCK_NUM]);
-    _map_SetNext();
+        if (iRemove)
+        {
+            iCount++;
+        }
+    }
+    assert(0 < iCount);
 
-    g_iTimeCount = 0;
-
-    //g_aiPosition[0] = 0;
-
-    return ME_WAIT;
+    return iCount;
 }
 
-MAP_EVENT_E _map_ActionDown()
+int map_RemoveRowCurrTetris(int aiMap[DATA_MAP_RXC])
 {
-    int aaiTemp[4][2], x, y;
+    int iRemove, iCount, x, y, iCannot = 0;
+    int *piRmRow;
+    POINT_S *pstPosition;
+    DATA_TETRIS_S *pstTetris;
+    DATA_RMROW_S *pstRmRow;
 
-    for (int i = 0; i < 4; i++)
+    pstRmRow = DATA_GetRmRow();
+    piRmRow = pstRmRow->aiRow;
+    assert(0 < pstRmRow->iCount);
+
+    pstTetris = DATA_GetCurrTetris();
+    pstPosition = DATA_GetCurrTetrisPos();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        aaiTemp[i][0] = g_aaiBuff[i][0] + 1;
-        aaiTemp[i][1] = g_aaiBuff[i][1];
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_ROW <= y || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
+        iRemove = 0;
+        iCount = 0;
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
+        for (int index = 0; index < pstRmRow->iCount; index++)
         {
-            return ME_LANDING;
+            if (y == piRmRow[index])
+            {
+                iRemove = 1;
+                break;
+            }
+            else if (y < piRmRow[index])
+            {
+                iCount++;
+            }
+        }
+
+        if (!iRemove)
+        {
+            y += iCount;
+            if (y >= 0)
+            {
+                aiMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
+            }
+
+            if (y <= 0)
+            {
+                iCannot = 1;
+            }
         }
     }
 
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[0]++;
+    return iCannot;
+}
+
+int map_RemoveRow(void)
+{
+    int iIsOver;
+    int aiMap[DATA_MAP_RXC];
+
+    memset(aiMap, 0, sizeof(aiMap));
+
+    (void) map_RemoveRowMap(aiMap);
+
+    iIsOver = map_RemoveRowCurrTetris(aiMap);
+
+    (void) DATA_SetMapCanvas(aiMap);
+
+    return iIsOver;
+}
+
+int map_TryRemoveCol(void)
+{
+    int aiMap[DATA_MAP_RXC];
+    int iRemove, iLeft, iRight;
+    int *piRmRow;
+    DATA_RMROW_S *pstRmRow;
+
+    memcpy(aiMap, DATA_GetMapCanvas(), sizeof(aiMap));
+    pstRmRow = DATA_GetRmRow();
+    piRmRow = pstRmRow->aiRow;
+    assert(0 < pstRmRow->iCount);
+
+    iRemove = 0;
+    iLeft = (DATA_MAP_COL - 1) / 2;
+    iRight = (DATA_MAP_COL) / 2;
+    for (; iLeft >= 0; iLeft--, iRight++)
+    {
+        assert(DATA_MAP_COL > iRight);
+        if (SHOW_SHARP_INVALID == aiMap[DATA_INDEX_MAP(piRmRow[0], iLeft)])
+        {
+            continue;
+        }
+
+        for (int i = 0; i < pstRmRow->iCount; i++)
+        {
+            assert(SHOW_SHARP_INVALID != aiMap[DATA_INDEX_MAP(piRmRow[i], iLeft)]);
+            aiMap[DATA_INDEX_MAP(piRmRow[i], iLeft)] = SHOW_SHARP_INVALID;
+            if (iRight != iLeft)
+            {
+                assert(SHOW_SHARP_INVALID != aiMap[DATA_INDEX_MAP(piRmRow[i], iRight)]);
+                aiMap[DATA_INDEX_MAP(piRmRow[i], iRight)] = SHOW_SHARP_INVALID;
+            }
+        }
+        iRemove = 1;
+        break;
+    }
+
+    if (iRemove)
+    {
+        (void) DATA_SetMapCanvas(aiMap);
+    }
+
+    return iRemove;
+}
+
+MAP_EVENT_E map_ActionInit()
+{
+    int aiMap[DATA_MAP_RXC];
+    DATA_TETRIS_S stTetris;
+
+    memset(aiMap, 0, sizeof(aiMap));
+    (void) DATA_SetMapCanvas(aiMap);
+    (void) DATA_ResetTimeCount();
+
+    memset(&stTetris, 0, sizeof(stTetris));
+    map_SetCurrTetris(&stTetris);
+
+    DATA_SetRandSeed(time(NULL));
+    DATA_UpdateNextTetris();
+
+    DATA_ResetScore();
+
+    DATA_SetCurrState(MS_INIT);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionLeft()
+MAP_EVENT_E map_ActionStart()
 {
-    int aaiTemp[4][2], x, y;
-
-    for (int i = 0; i < 4; i++)
-    {
-        aaiTemp[i][0] = g_aaiBuff[i][0];
-        aaiTemp[i][1] = g_aaiBuff[i][1] - 1;
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (0 > x || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
-        {
-            return ME_MAX;
-        }
-    }
-
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[1]--;
+    map_SetCurrTetris(DATA_GetNextTetris());
+    DATA_UpdateNextTetris();
+    DATA_SetCurrState(MS_WAITING);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_ActionRight()
-{
-    int aaiTemp[4][2], x, y;
-
-    for (int i = 0; i < 4; i++)
-    {
-        aaiTemp[i][0] = g_aaiBuff[i][0];
-        aaiTemp[i][1] = g_aaiBuff[i][1] + 1;
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_COL <= x || (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
-        {
-            return ME_MAX;
-        }
-    }
-
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-    g_aiPosition[1]++;
-
-    return ME_MAX;
-}
-
-MAP_EVENT_E _map_ActionClock()
-{
-    int aaiTemp[4][2], x, y;
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = g_aaiBuff[i][0] - g_aiPosition[0];
-        x = g_aaiBuff[i][1] - g_aiPosition[1];
-
-        aaiTemp[i][0] = g_aiPosition[0] + x;
-        aaiTemp[i][1] = g_aiPosition[1] + 3 - y;
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_COL <= x || 0 > x || -4 > y || MAP_ROW <= y ||
-                (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
-        {
-            return ME_MAX;
-        }
-    }
-
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-
-    return ME_MAX;
-}
-
-MAP_EVENT_E _map_ActionCntrClk()
-{
-    int aaiTemp[4][2], x, y;
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = g_aaiBuff[i][0] - g_aiPosition[0];
-        x = g_aaiBuff[i][1] - g_aiPosition[1];
-
-        aaiTemp[i][0] = g_aiPosition[0] + 3 - x;
-        aaiTemp[i][1] = g_aiPosition[1] + y;
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        y = aaiTemp[i][0];
-        x = aaiTemp[i][1];
-
-        if (MAP_COL <= x || 0 > x || -4 > y || MAP_ROW <= y ||
-                (0 <= y && MP_TYPE_INVALID != g_aaiMap[y][x]))
-        {
-            return ME_MAX;
-        }
-    }
-
-    memcpy(g_aaiBuff, aaiTemp, sizeof(g_aaiBuff));
-
-    return ME_MAX;
-}
-
-MAP_EVENT_E _map_ActionLanding()
+MAP_EVENT_E map_ActionDown()
 {
     int x, y;
+    int *piMap;
+    POINT_S stPosition;
+    DATA_TETRIS_S *pstTetris;
 
-    for (int i = 0; i < 4; i++)
+    if (MS_WAITING == DATA_GetCurrState())
     {
-        y = g_aaiBuff[i][0];
-        x = g_aaiBuff[i][1];
+        if (MAIN_TIMECOUNT_WAIT > DATA_UpdateTimeCount())
+        {
+            return ME_MAX;
+        }
+
+        DATA_ResetTimeCount();
+    }
+    else
+    {
+        assert(MS_FAST == DATA_GetCurrState());
+
+        if (MAIN_TIMECOUNT_FAST > DATA_UpdateTimeCount())
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_ResetTimeCount();
+
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.y++;
+
+    pstTetris = DATA_GetCurrTetris();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
+    {
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
+
+        if (DATA_MAP_ROW <= y ||
+                (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
+        {
+            return ME_LAND;
+        }
+    }
+
+    DATA_SetCurrTetrisPos(&stPosition);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_ActionLeft()
+{
+    int x, y;
+    int *piMap;
+    POINT_S stPosition;
+    DATA_TETRIS_S *pstTetris;
+
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.x--;
+
+    pstTetris = DATA_GetCurrTetris();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
+    {
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
+
+        if (0 > x || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_SetCurrTetrisPos(&stPosition);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_ActionRight()
+{
+    int x, y;
+    int *piMap;
+    POINT_S stPosition;
+    DATA_TETRIS_S *pstTetris;
+
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.x++;
+
+    pstTetris = DATA_GetCurrTetris();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
+    {
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
+
+        if (DATA_MAP_COL <= x ||
+                (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_SetCurrTetrisPos(&stPosition);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_ActionClock()
+{
+    int x, y;
+    int *piMap;
+    POINT_S *pstPosition;
+    DATA_TETRIS_S stTetris;
+
+    memcpy(&stTetris, DATA_GetCurrTetris(), sizeof(stTetris));
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
+    {
+        y = stTetris.astTetris[i].y;
+        x = stTetris.astTetris[i].x;
+
+        stTetris.astTetris[i].y = x;
+        stTetris.astTetris[i].x = 3 - y;
+    }
+
+    pstPosition = DATA_GetCurrTetrisPos();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
+    {
+        y = stTetris.astTetris[i].y + pstPosition->y;
+        x = stTetris.astTetris[i].x + pstPosition->x;
+
+        if (DATA_MAP_COL <= x || 0 > x || -4 > y || DATA_MAP_ROW <= y
+                || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_SetCurrTetris(&stTetris);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_ActionCntrClk()
+{
+    int x, y;
+    int *piMap;
+    POINT_S *pstPosition;
+    DATA_TETRIS_S stTetris;
+
+    memcpy(&stTetris, DATA_GetCurrTetris(), sizeof(stTetris));
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
+    {
+        y = stTetris.astTetris[i].y;
+        x = stTetris.astTetris[i].x;
+
+        stTetris.astTetris[i].y = 3 - x;
+        stTetris.astTetris[i].x = y;
+    }
+
+    pstPosition = DATA_GetCurrTetrisPos();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
+    {
+        y = stTetris.astTetris[i].y + pstPosition->y;
+        x = stTetris.astTetris[i].x + pstPosition->x;
+
+        if (DATA_MAP_COL <= x || 0 > x || -4 > y || DATA_MAP_ROW <= y
+                || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_SetCurrTetris(&stTetris);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_ActionLand()
+{
+    int x, y, iCan, iIsOver = 0;
+    int *piMap;
+    POINT_S *pstPosition;
+    DATA_TETRIS_S *pstTetris;
+    DATA_RMROW_S stRmRow;
+
+    piMap = DATA_GetMapCanvas();
+    pstTetris = DATA_GetCurrTetris();
+    pstPosition = DATA_GetCurrTetrisPos();
+
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
+    {
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
 
         if (0 <= y)
         {
-            g_aaiMap[y][x] = MP_TYPE_POINT;
+            piMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
         }
-        else
+
+        if (0 >= y)
         {
-            return ME_OVER;
+            iIsOver = 1;
         }
     }
 
-    _map_SetBuff(g_aaiNext);
-    _map_SetNext();
-
-    return ME_ANNLT;
-}
-
-MAP_EVENT_E _map_ActionAnnlt(void)
-{
-    int iCan, iCount;
-    int aaiMap[MAP_ROW][MAP_COL];
-
-    iCount = 0;
-    memset(aaiMap, 0, sizeof(aaiMap));
-
-    for (int y = MAP_ROW - 1; 0 <= y; y--)
+    memset(&stRmRow, 0, sizeof(stRmRow));
+    for (int y = DATA_MAP_ROW - 1; 0 <= y; y--)
     {
         iCan = 1;
-        for (int x = 0; MAP_COL > x; x++)
+        for (int x = 0; DATA_MAP_COL > x; x++)
         {
-            aaiMap[y + iCount][x] = g_aaiMap[y][x];
-            if (MP_TYPE_INVALID == g_aaiMap[y][x])
+            if (SHOW_SHARP_INVALID == piMap[DATA_INDEX_MAP(y, x)])
             {
                 iCan = 0;
+                break;
             }
         }
 
         if (iCan)
         {
-            iCount++;
+            assert(stRmRow.iCount < ARRAY_SIZE(stRmRow.aiRow));
+            stRmRow.aiRow[stRmRow.iCount] = y;
+            stRmRow.iCount++;
         }
     }
-
-    if (!iCan)
+    if (stRmRow.iCount)
     {
-        memcpy(g_aaiMap, aaiMap, sizeof(g_aaiMap));
+        DATA_SetRmRow(&stRmRow);
+        DATA_SetCurrState(MS_REMOVE);
+        return ME_MAX;
     }
 
-    return ME_WAIT;
-}
+    if (iIsOver)
+    {
+        DATA_SetCurrState(MS_OVER);
+        return ME_MAX;
+    }
 
-MAP_EVENT_E _map_TranWait()
-{
-    g_enCurr = MS_WAITING;
-
-    return ME_MAX;
-}
-
-MAP_EVENT_E _map_TranPause()
-{
-    g_enCurr = MS_PAUSE;
+    map_SetCurrTetris(DATA_GetNextTetris());
+    DATA_UpdateNextTetris();
+    DATA_SetCurrState(MS_WAITING);
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_TranFast()
+MAP_EVENT_E map_ActionRemove(void)
 {
-    g_enCurr = MS_FAST;
+    int iRemove, iIsOver;
+    DATA_RMROW_S *pstRmRow;
+
+    assert(MS_REMOVE == DATA_GetCurrState());
+
+    if (MAIN_TIMECOUNT_REMOVE > DATA_UpdateTimeCount())
+    {
+        return ME_MAX;
+    }
+
+    DATA_ResetTimeCount();
+
+    iRemove = map_TryRemoveCol();
+    if (iRemove)
+    {
+        return ME_MAX;
+    }
+
+    pstRmRow = DATA_GetRmRow();
+    DATA_IncreaseScore(pstRmRow->iCount);
+
+    iIsOver = map_RemoveRow();
+    if (iIsOver)
+    {
+        DATA_SetCurrState(MS_OVER);
+    }
+    else
+    {
+        map_SetCurrTetris(DATA_GetNextTetris());
+        DATA_UpdateNextTetris();
+        DATA_SetCurrState(MS_WAITING);
+    }
 
     return ME_MAX;
 }
 
-MAP_EVENT_E _map_TranOver()
+MAP_EVENT_E map_TranWait()
 {
-    g_enCurr = MS_OVER;
+    DATA_SetCurrState(MS_WAITING);
 
     return ME_MAX;
 }
 
-static MAP_TRANSSTATE_PF g_apfMapFSM[MS_MAX][ME_MAX] = {
-        /* MS_UNINIT */
+MAP_EVENT_E map_TranFast()
+{
+    DATA_SetCurrState(MS_FAST);
+
+    return ME_MAX;
+}
+
+MAP_EVENT_E map_TranPause()
+{
+    DATA_SetCurrState(MS_PAUSE);
+
+    return ME_MAX;
+}
+
+static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
+{
+        [MS_INVALID] =
         {
-                _map_ActionInit,      /* ME_INIT       */
-                NULL,                 /* ME_DOWN       */
-                NULL,                 /* ME_LEFT       */
-                NULL,                 /* ME_RIGHT      */
-                NULL,                 /* ME_CLOCK      */
-                NULL,                 /* ME_CNTRCLK    */
-                NULL,                 /* ME_LANDING    */
-                NULL,                 /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
-                NULL,                 /* ME_PAUSETOG   */
-                NULL,                 /* ME_FASTTOG    */
-                NULL,                 /* ME_OVER       */
+                [ME_INIT]       = map_ActionInit,
+                [ME_START]      = NULL,
+                [ME_TICK]       = NULL,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = NULL,
+                [ME_FASTTOG]    = NULL,
         },
-        /* MS_WAITING */
+        [MS_INIT] =
         {
-                NULL,                 /* ME_INIT       */
-                _map_ActionDown,      /* ME_DOWN       */
-                _map_ActionLeft,      /* ME_LEFT       */
-                _map_ActionRight,     /* ME_RIGHT      */
-                _map_ActionClock,     /* ME_CLOCK      */
-                _map_ActionCntrClk,   /* ME_CNTRCLK    */
-                _map_ActionLanding,   /* ME_LANDING    */
-                _map_ActionAnnlt,     /* ME_ANNLT      */
-                NULL,                 /* ME_WAIT       */
-                _map_TranPause,       /* ME_PAUSETOG   */
-                _map_TranFast,        /* ME_FASTTOG    */
-                _map_TranOver,        /* ME_OVER       */
+                [ME_INIT]       = NULL,
+                [ME_START]      = map_ActionStart,
+                [ME_TICK]       = NULL,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = NULL,
+                [ME_FASTTOG]    = NULL,
         },
-        /* MS_FAST */
+        [MS_WAITING] =
         {
-                NULL,                 /* ME_INIT       */
-                _map_ActionDown,      /* ME_DOWN       */
-                NULL,                 /* ME_LEFT       */
-                NULL,                 /* ME_RIGHT      */
-                NULL,                 /* ME_CLOCK      */
-                NULL,                 /* ME_CNTRCLK    */
-                _map_ActionLanding,   /* ME_LANDING    */
-                _map_ActionAnnlt,     /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
-                NULL,                 /* ME_PAUSETOG   */
-                _map_TranWait,        /* ME_FASTTOG    */
-                _map_TranOver,        /* ME_OVER       */
+                [ME_INIT]       = NULL,
+                [ME_START]      = NULL,
+                [ME_TICK]       = map_ActionDown,
+                [ME_LEFT]       = map_ActionLeft,
+                [ME_RIGHT]      = map_ActionRight,
+                [ME_CLOCK]      = map_ActionClock,
+                [ME_CNTRCLK]    = map_ActionCntrClk,
+                [ME_LAND]       = map_ActionLand,
+                [ME_PAUSETOG]   = map_TranPause,
+                [ME_FASTTOG]    = map_TranFast,
         },
-        /* MS_PAUSE */
+        [MS_FAST] =
         {
-                NULL,                 /* ME_INIT       */
-                NULL,                 /* ME_DOWN       */
-                NULL,                 /* ME_LEFT       */
-                NULL,                 /* ME_RIGHT      */
-                NULL,                 /* ME_CLOCK      */
-                NULL,                 /* ME_CNTRCLK    */
-                NULL,                 /* ME_LANDING    */
-                NULL,                 /* ME_ANNLT      */
-                NULL,                 /* ME_WAIT       */
-                _map_TranWait,        /* ME_PAUSETOG   */
-                NULL,                 /* ME_FASTTOG    */
-                NULL,                 /* ME_OVER       */
+                [ME_INIT]       = NULL,
+                [ME_START]      = NULL,
+                [ME_TICK]       = map_ActionDown,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = map_ActionLand,
+                [ME_PAUSETOG]   = map_TranPause,
+                [ME_FASTTOG]    = map_TranWait,
         },
-        /* MS_OVER */
+        [MS_REMOVE] =
         {
-                _map_ActionInit,      /* ME_INIT       */
-                NULL,                 /* ME_DOWN       */
-                NULL,                 /* ME_LEFT       */
-                NULL,                 /* ME_RIGHT      */
-                NULL,                 /* ME_CLOCK      */
-                NULL,                 /* ME_CNTRCLK    */
-                NULL,                 /* ME_LANDING    */
-                NULL,                 /* ME_ANNLT      */
-                _map_TranWait,        /* ME_WAIT       */
-                NULL,                 /* ME_PAUSE      */
-                NULL,                 /* ME_FAST       */
-                NULL,                 /* ME_OVER       */
+                [ME_INIT]       = NULL,
+                [ME_START]      = NULL,
+                [ME_TICK]       = map_ActionRemove,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = NULL,
+                [ME_FASTTOG]    = NULL,
+        },
+        [MS_PAUSE] =
+        {
+                [ME_INIT]       = NULL,
+                [ME_START]      = NULL,
+                [ME_TICK]       = NULL,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = map_TranWait,
+                [ME_FASTTOG]    = NULL,
+        },
+        [MS_OVER] =
+        {
+                [ME_INIT]       = NULL,
+                [ME_START]      = map_ActionInit,
+                [ME_TICK]       = NULL,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = NULL,
+                [ME_FASTTOG]    = NULL,
         },
 };
 
-int _map_FSM(MAP_EVENT_E enEvent)
+int map_FSM(MAP_EVENT_E enEvent)
 {
-    MAP_TRANSSTATE_PF pfTrans;
-    MAP_EVENT_E enTmpEvent = enEvent;
+    MAP_PROCEVENT_PF pfTrans;
+    MAP_EVENT_E enTmpEvent;
+    MAP_STATE_E enOldState;
 
-    while(ME_MAX != enTmpEvent)
+    enOldState = DATA_GetCurrState();
+
+    enTmpEvent = enEvent;
+    while (ME_MAX != enTmpEvent)
     {
-        pfTrans = g_apfMapFSM[g_enCurr][enTmpEvent];
+        enOldState = DATA_GetCurrState();
+        pfTrans = g_apfMapFSM[enOldState][enTmpEvent];
         if (NULL != pfTrans)
         {
             enTmpEvent = pfTrans();
@@ -439,90 +677,91 @@ int _map_FSM(MAP_EVENT_E enEvent)
         {
             enTmpEvent = ME_MAX;
         }
+
+        LOG_DEBUG("MAP-FSM: old-state=%d, event=%d, new-state=%d.", enOldState,
+                enEvent, DATA_GetCurrState());
     }
 
-    _map_Show();
+    map_Show();
 
     return ERROR_SUCCESS;
 }
 
-int _map_ProcEventTime()
+int map_ProcEventTime()
 {
-    g_iTimeCount++;
+    LOG_DEBUG("Time Input.");
 
-    if (MAP_TIMECOUNT_MAX <= g_iTimeCount || MS_FAST == g_enCurr)
-    {
-        g_iTimeCount = 0;
-
-        _map_FSM(ME_DOWN);
-    }
+    map_FSM(ME_TICK);
 
     return ERROR_SUCCESS;
 }
 
-int _map_ProcEventKey(int iChar)
+int map_ProcEventKey(int iChar)
 {
-    char szTip[20];
     MAP_EVENT_E enEvent;
 
-    switch (iChar) {
-        case 'a':
-        case 'A':
-            enEvent = ME_LEFT;
-            break;
-        case 'd':
-        case 'D':
-            enEvent = ME_RIGHT;
-            break;
-        case 'j':
-        case 'J':
-            enEvent = ME_CNTRCLK;
-            break;
-        case 'k':
-        case 'K':
-            enEvent = ME_CLOCK;
-            break;
-        case 's':
-        case 'S':
-            enEvent = ME_FASTTOG;
-            break;
-        case 'h':
-        case 'H':
-            enEvent = ME_PAUSETOG;
-            break;
-        case 'g':
-        case 'G':
-            enEvent = ME_INIT;
-            break;
-        default:
-            sprintf(szTip, "Error key(%c)! ", iChar);
-            SHOW_ShowTip(szTip);
-            enEvent = ME_MAX;
-            break;
+    LOG_DEBUG("Key(%d) Input.", iChar);
+
+    switch (iChar)
+    {
+    case 'a':
+    case 'A':
+        enEvent = ME_LEFT;
+        break;
+    case 'd':
+    case 'D':
+        enEvent = ME_RIGHT;
+        break;
+    case 'j':
+    case 'J':
+        enEvent = ME_CNTRCLK;
+        break;
+    case 'k':
+    case 'K':
+        enEvent = ME_CLOCK;
+        break;
+    case 's':
+    case 'S':
+        enEvent = ME_FASTTOG;
+        break;
+    case 'h':
+    case 'H':
+        enEvent = ME_PAUSETOG;
+        break;
+    case 'g':
+    case 'G':
+        enEvent = ME_START;
+        break;
+    default:
+        enEvent = ME_MAX;
+        break;
     }
 
-    _map_FSM(enEvent);
+    map_FSM(enEvent);
 
     return ERROR_SUCCESS;
 }
-int MAP_Input(MAP_INPUT_E enInput, void *pData)
+
+int MAP_ProcEvent(MAIN_EVENT_E enEvent, void *pData)
 {
-    switch(enInput)
+    switch (enEvent)
     {
-        case MI_TIME:
-        {
-            _map_ProcEventTime();
-            break;
-        }
-        case MI_KEY:
-        {
-            _map_ProcEventKey(*(int *) pData);
-            break;
-        }
-        default:
-        {
-            break;
-        }
+    case MAIN_EVENT_TICK:
+    {
+        map_ProcEventTime();
+        break;
+    }
+    case MAIN_EVENT_KEY:
+    {
+        map_ProcEventKey((int) pData);
+        break;
+    }
+    case MAIN_EVENT_EXIT:
+    default:
+    {
+        assert(0);
+        break;
+    }
     }
 
     return ERROR_SUCCESS;
@@ -530,9 +769,8 @@ int MAP_Input(MAP_INPUT_E enInput, void *pData)
 
 int MAP_Init()
 {
-    g_enCurr = MS_UNINIT;
-
-    _map_FSM(ME_INIT);
+    DATA_SetCurrState(MS_INVALID);
+    map_FSM(ME_INIT);
 
     return ERROR_SUCCESS;
 }

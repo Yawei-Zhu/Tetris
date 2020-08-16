@@ -8,20 +8,25 @@
 #ifndef BASE_H_
 #define BASE_H_
 
-typedef unsigned char  uchar;
-typedef unsigned short ushort;
-typedef unsigned int   uint;
-typedef unsigned long  ulong;
+typedef unsigned char       uchar;
+typedef unsigned short      ushort;
+typedef unsigned int        uint;
+typedef unsigned long       ulong;
 
 #define OFFSET(TYPE, MEMBER) ((ulong)(&((TYPE *)0)->MEMBER))
-#define CONTAINER(pMember, TYPE, MEMBER) ((TYPE *)((uchar *)(pMember) - OFFSET(TYPE, MEMBER)))
+#define CONTAINER(pMember, TYPE, MEMBER)  \
+            ((TYPE *)((uchar *)(pMember) - OFFSET(TYPE, MEMBER)))
 
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+#define BIT_SET(f, v)   ((f) |=  (v))
+#define BIT_RESET(f, v) ((f) &= ~(v))
+
 #define BIT_MATCH(f, v) ((f) & (v) == (v))
+#define BIT_TEST(f, v)  ((f) & (v) != 0)
 
 #ifdef ERROR_SUCCESS
 #undef ERROR_SUCCESS
