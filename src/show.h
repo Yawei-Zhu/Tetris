@@ -5,10 +5,6 @@
  *      Author: Wind
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef SHOW_H_
 #define SHOW_H_
 
@@ -46,14 +42,13 @@ extern "C" {
 
 #define SHOW_TABS_PIXEL(sharp)   SHOW_PIXEL(SHOW_COLOR_DEFAULT, (sharp))
 
+#define SHOW_INVALID_PIXEL   SHOW_PIXEL(SHOW_COLOR_DEFAULT, SHOW_SHARP_INVALID)
+
 int  SHOW_Init();
 void SHOW_Exit();
 
-int SHOW_ShowMap(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL]);
-int SHOW_ShowNext(int aaiNext[DATA_NEXT_ROW][DATA_NEXT_COL]);
+int SHOW_ShowMap(int aiMap[DATA_MAP_RXC]);
+int SHOW_ShowNext(int aiNext[DATA_TETRIS_RXC]);
+int SHOW_ShowScore(int iScore);
 
 #endif /* SHOW_H_ */
-
-#ifdef __cplusplus
-}
-#endif

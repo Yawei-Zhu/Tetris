@@ -164,8 +164,11 @@ int main_Init(void)
 
 void main_Exit(void)
 {
-    g_iMainContinue = 0;
     (void) SetConsoleCtrlHandler(main_ConsoleCtrlHandler, FALSE);
+
+    g_iMainContinue = 0;
+    timeKillEvent(g_uiMainTimer);
+    g_uiMainTimer = 0;
 
     KEY_Exit();
     MAP_Exit();

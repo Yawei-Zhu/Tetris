@@ -21,51 +21,28 @@ extern "C" {
 #include "data.h"
 #include "show.h"
 
-
-int g_aaaiDataAllTetris[DATA_TETRIS_NUM][4][2] =
-    {
-            {{0, 2}, {1, 2}, {2, 2}, {3, 2}},
-            {{0, 1}, {0, 2}, {1, 2}, {2, 2}},
-            {{0, 1}, {0, 2}, {1, 1}, {2, 1}},
-            {{1, 1}, {1, 2}, {2, 1}, {2, 2}},
-            {{0, 1}, {1, 1}, {1, 2}, {2, 2}},
-            {{0, 2}, {1, 1}, {1, 2}, {2, 1}},
-            {{1, 2}, {2, 1}, {2, 2}, {2, 3}},
-    };
-
-int g_aiDataAllTetrisColor[DATA_TETRIS_NUM] =
-        {
-                SHOW_COLOR_HY,
-                SHOW_COLOR_BLUE,
-                SHOW_COLOR_GREEN,
-                SHOW_COLOR_LG,
-                SHOW_COLOR_RED,
-                SHOW_COLOR_PURPLE,
-                SHOW_COLOR_YELLOW,
-        };
-
-int g_aiDataAllTetrisProbability[DATA_TETRIS_NUM] =
-        {
-                1,
-                1,
-                1,
-                1,
-                1,
-                1,
-                1,
-        };
-
-
+DATA_TETRIS_S g_astDataAllTetris[DATA_TETRIS_NUM] =
+{
+        {{{2, 0}, {2, 1}, {2, 2}, {2, 3}}, SHOW_POINT_PIXEL(SHOW_COLOR_HY)},
+        {{{1, 0}, {2, 0}, {2, 1}, {2, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_BLUE)},
+        {{{1, 0}, {2, 0}, {1, 1}, {1, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_GREEN)},
+        {{{1, 1}, {2, 1}, {1, 2}, {2, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_LG)},
+        {{{1, 0}, {1, 1}, {2, 1}, {2, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_RED)},
+        {{{2, 0}, {1, 1}, {2, 1}, {1, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_PURPLE)},
+        {{{2, 1}, {1, 2}, {2, 2}, {3, 2}}, SHOW_POINT_PIXEL(SHOW_COLOR_YELLOW)},
+};
+int g_aiDataSameRand[2];
+int g_iDataSameRandIndex = 0;
 DATA_RUN_S g_stDataRun;
 
-rpint DATA_GetMapCanvas(void)
+int *DATA_GetMapCanvas(void)
 {
-    return g_stDataRun.aaiMapCanvas;
+    return g_stDataRun.aiMapCanvas;
 }
 
-int DATA_SetMapCanvas(int ppiCanvas[DATA_MAP_ROW][DATA_MAP_COL])
+int DATA_SetMapCanvas(int piCanvas[DATA_MAP_RXC])
 {
-    memcpy(g_stDataRun.aaiMapCanvas, ppiCanvas, sizeof(g_stDataRun.aaiMapCanvas));
+    memcpy(g_stDataRun.aiMapCanvas, piCanvas, sizeof(g_stDataRun.aiMapCanvas));
 
     return ERROR_SUCCESS;
 }
@@ -75,12 +52,12 @@ DATA_TETRIS_S *DATA_GetNextTetris(void)
     return &g_stDataRun.stNextTetris;
 }
 
-int   DATA_SetNextTetris(DATA_TETRIS_S *pstTetris)
+DATA_TETRIS_S *DATA_UpdateNextTetris(void)
 {
-    memcpy(&g_stDataRun.stNextTetris, pstTetris,
+    memcpy(&g_stDataRun.stNextTetris, DATA_GetRandTetris(),
            sizeof(g_stDataRun.stNextTetris));
 
-    return ERROR_SUCCESS;
+    return &g_stDataRun.stNextTetris;
 }
 
 DATA_TETRIS_S *DATA_GetCurrTetris(void)
@@ -95,15 +72,16 @@ int   DATA_SetCurrTetris(DATA_TETRIS_S *pstTetris)
     return ERROR_SUCCESS;
 }
 
-int *DATA_GetCurrTetrisPosition(void)
+POINT_S *DATA_GetCurrTetrisPos(void)
 {
-    return g_stDataRun.aiCurrTetrisPosition;
+    return &g_stDataRun.stCurrTetrisPos;
 }
 
-int   DATA_SetCurrTetrisPosition(int aiPosition[2])
+int   DATA_SetCurrTetrisPos(POINT_S *pstPosition)
 {
-    memcpy(g_stDataRun.aiCurrTetrisPosition, aiPosition,
-           sizeof(g_stDataRun.aiCurrTetrisPosition));
+    memcpy(&g_stDataRun.stCurrTetrisPos,
+           pstPosition,
+           sizeof(g_stDataRun.stCurrTetrisPos));
     return ERROR_SUCCESS;
 }
 
@@ -130,17 +108,39 @@ int DATA_SetRmRow(DATA_RMROW_S *pstRmRow)
     return ERROR_SUCCESS;
 }
 
-int DATA_ResetTimeCount()
+int  DATA_ResetScore(void)
+{
+    return g_stDataRun.iScore = 0;
+}
+
+int  DATA_IncreaseScore(int iRow)
+{
+    if (iRow <= 0)
+    {
+        return g_stDataRun.iScore = 0;
+    }
+    else
+    {
+        return g_stDataRun.iScore += iRow * iRow;
+    }
+}
+
+int  DATA_PeekScore(void)
+{
+    return g_stDataRun.iScore;
+}
+
+int DATA_ResetTimeCount(void)
 {
     return g_stDataRun.iTimeCount = 0;
 }
 
-int  DATA_UpdateTimeCount()
+int  DATA_UpdateTimeCount(void)
 {
     return ++g_stDataRun.iTimeCount;
 }
 
-int  DATA_PeekTimeCount()
+int  DATA_PeekTimeCount(void)
 {
     return g_stDataRun.iTimeCount;
 }
@@ -153,62 +153,58 @@ void DATA_SetRandSeed(uint uiSeed)
 
 int data_Rand()
 {
-    int iSum, iRand, iIndex;
+    int iCount, iRand, iOld, iIndex;
 
-    return rand() % DATA_TETRIS_NUM;
-    iSum = 0;
-    for (int i = 0; i < DATA_TETRIS_NUM; i++)
+    iCount = ARRAY_SIZE(g_aiDataSameRand);
+
+    iOld = g_aiDataSameRand[0];
+    if (iOld >= 0)
     {
-        iSum += g_aiDataAllTetrisProbability[i];
-    }
-
-    iRand = rand() % iSum;
-
-    iIndex = 0;
-    for (int i = 0; i < DATA_TETRIS_NUM; i++)
-    {
-        if (iRand < g_aiDataAllTetrisProbability[i])
+        for (iIndex = 1; iIndex < iCount; iIndex++)
         {
-            iIndex = i;
-            break;
-        }
-        iRand -= g_aiDataAllTetrisProbability[i];
-    }
-
-    if (g_aiDataAllTetrisProbability[iIndex] > 1)
-    {
-        g_aiDataAllTetrisProbability[iIndex] >>= 1;
-    }
-    else
-    {
-        for (int i = 0; i < DATA_TETRIS_NUM; i++)
-        {
-            if (iIndex != i)
+            if (iOld != g_aiDataSameRand[iIndex])
             {
-                g_aiDataAllTetrisProbability[i] <<= 1;
+                iOld = -1;
                 break;
             }
         }
     }
 
-    return iIndex;
+    if (iOld >= 0)
+    {
+        iRand = rand() % (DATA_TETRIS_NUM - 1);
+        if (iRand >= iOld)
+        {
+            iRand++;
+        }
+    }
+    else
+    {
+        iRand = rand() % DATA_TETRIS_NUM;
+    }
+
+    g_aiDataSameRand[g_iDataSameRandIndex] = iRand;
+    g_iDataSameRandIndex++;
+    if (g_iDataSameRandIndex >= iCount)
+    {
+        g_iDataSameRandIndex = 0;
+    }
+
+    return iRand;
 }
 
-void DATA_GetRandTetris(DATA_TETRIS_S *pstTetris)
+DATA_TETRIS_S *DATA_GetRandTetris(void)
 {
     int iRand;
-    assert(NULL != pstTetris);
-
-    memset(pstTetris, 0, sizeof(DATA_TETRIS_S));
 
     iRand = data_Rand();
-    memcpy(pstTetris->aaiTetris,
-            g_aaaiDataAllTetris[iRand],
-            sizeof(pstTetris->aaiTetris));
 
-    pstTetris->iTetrisPixel = SHOW_POINT_PIXEL(g_aiDataAllTetrisColor[iRand]);
+    return g_astDataAllTetris + iRand;
+}
 
-    return;
+DATA_RUN_S *DATA_GetRun(void)
+{
+    return &g_stDataRun;
 }
 
 int  DATA_Save(void)
@@ -223,6 +219,8 @@ int  DATA_Save(void)
 int  DATA_Init(void)
 {
     memset(&g_stDataRun, 0, sizeof(g_stDataRun));
+    memset(&g_aiDataSameRand, -1, sizeof(g_aiDataSameRand));
+    g_iDataSameRandIndex = 0;
     return ERROR_SUCCESS;
 }
 

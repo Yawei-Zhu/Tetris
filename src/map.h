@@ -10,6 +10,7 @@
 
 typedef enum tagMapState
 {
+    MS_INVALID,
     MS_INIT,
     MS_WAITING,
     MS_FAST,
@@ -24,7 +25,6 @@ typedef enum tagMapEvent
     ME_INIT,
     ME_START,
     ME_TICK,
-    ME_DOWN,
     ME_LEFT,
     ME_RIGHT,
     ME_CLOCK,

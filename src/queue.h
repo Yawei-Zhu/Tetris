@@ -5,10 +5,6 @@
  *      Author: 10248
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef QUEUE_H_
 #define QUEUE_H_
 
@@ -34,7 +30,3 @@ int QUE_Read(QUE_HANDLE hQueue, QUE_MSG_S *pstMsg, unsigned int uiTimeout);
 int QUE_Write(QUE_HANDLE hQueue, QUE_MSG_S *pstMsg);
 
 #endif /* QUEUE_H_ */
-
-#ifdef __cplusplus
-}
-#endif

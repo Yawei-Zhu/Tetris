@@ -21,31 +21,31 @@ extern "C" {
 #include "show.h"
 
 /*
- * ©°©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©´
- * ©¦....................©¦ ©°©¤©¤©¤©¤©¤©¤©¤©¤©´
- * ©¦....................©¦ ©¦........©¦
- * ©¦....................©¦ ©¦........©¦
- * ©¦....................©¦ ©¦........©¦
- * ©¦....................©¦ ©¦........©¦
- * ©¦....................©¦ ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¼
- * ©¦....................©¦  Score
- * ©¦....................©¦  0
- * ©¦....................©¦
- * ©¦....................©¦  Level
- * ©¦....................©¦  1
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¦....................©¦
- * ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¼
-
+ *   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8
+ * 0 ©°©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©´
+ * 1 ©¦....................©¦
+ * 2 ©¦....................©¦  ©°©¤©¤©¤©¤©´
+ * 3 ©¦....................©¦  ©¦........©¦
+ * 4 ©¦....................©¦  ©¦........©¦
+ * 5 ©¦....................©¦  ©¦........©¦
+ * 6 ©¦....................©¦  ©¦........©¦
+ * 7 ©¦....................©¦  ©¸©¤©¤©¤©¤©¼
+ * 8 ©¦....................©¦
+ * 9 ©¦....................©¦
+ * 0 ©¦....................©¦    Score:
+ * 1 ©¦....................©¦    0
+ * 2 ©¦....................©¦
+ * 3 ©¦....................©¦
+ * 4 ©¦....................©¦    Level:
+ * 5 ©¦....................©¦    1
+ * 6 ©¦....................©¦
+ * 7 ©¦....................©¦
+ * 8 ©¦....................©¦
+ * 9 ©¦....................©¦
+ * 0 ©¦....................©¦
+ * 1 ©¸©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¼
  * ©°©¤©´
- * ©¦ ©¦
+ * ©¦  ©¦
  * ©¸©¤©¼
  */
 #define SHOW_CANVAS_S  "  "
@@ -60,22 +60,38 @@ extern "C" {
 
 #define SHOW_PIXEL_LEN 2
 
-#define SHOW_ROW (DATA_MAP_ROW + 2)
-#define SHOW_COL (DATA_MAP_COL + DATA_NEXT_COL + 5)
+#define SHOW_CANVAS_ROW ((DATA_MAP_ROW) + 2)
+#define SHOW_CANVAS_COL ((DATA_MAP_COL) + (DATA_TETRIS_COL) + 5)
+#define SHOW_CANVAS_RXC (SHOW_CANVAS_ROW * SHOW_CANVAS_COL)
 
 #define SHOW_MAP_X_MIN 0
-#define SHOW_MAP_X_MAX (SHOW_MAP_X_MIN + DATA_MAP_COL + 1)
+#define SHOW_MAP_X_MAX ((SHOW_MAP_X_MIN) + (DATA_MAP_COL) + 1)
 #define SHOW_MAP_Y_MIN 0
-#define SHOW_MAP_Y_MAX (SHOW_MAP_Y_MIN + DATA_MAP_ROW + 1)
+#define SHOW_MAP_Y_MAX ((SHOW_MAP_Y_MIN) + (DATA_MAP_ROW) + 1)
 
-#define SHOW_NEXT_X_MIN (DATA_MAP_COL + 3)
-#define SHOW_NEXT_X_MAX (SHOW_NEXT_X_MIN + DATA_NEXT_COL + 1)
-#define SHOW_NEXT_Y_MIN 1
-#define SHOW_NEXT_Y_MAX (SHOW_NEXT_Y_MIN + DATA_NEXT_ROW + 1)
+#define SHOW_NEXT_X_MIN ((SHOW_MAP_X_MAX) + 2)
+#define SHOW_NEXT_X_MAX ((SHOW_NEXT_X_MIN) + (DATA_TETRIS_COL) + 1)
+#define SHOW_NEXT_Y_MIN 2
+#define SHOW_NEXT_Y_MAX ((SHOW_NEXT_Y_MIN) + (DATA_TETRIS_ROW) + 1)
+
+#define SHOW_SCORE_Y (SHOW_NEXT_Y_MAX + 3)
+#define SHOW_SCOREV_Y (SHOW_SCORE_Y + 1)
+
+#define SHOW_LEVEL_Y (SHOW_SCORE_Y + 3)
+#define SHOW_LEVELV_Y (SHOW_LEVEL_Y + 1)
+
+#define SHOW_CANVAS_INDEX(y, x) DATA_INDEX(SHOW_CANVAS_COL, y, x)
+
+#define SHOW_SCORE_TEXT "Score:"
+#define SHOW_LEVEL_TEXT "Level:"
 
 HANDLE g_hShowConsoleOut = NULL;
-int g_aaiShowCanvas[SHOW_ROW][SHOW_COL] = {0};
 int g_iShowCursorVisible = 0;
+
+int g_aiShowMapCanvas[DATA_MAP_RXC];
+int g_aiShowNextCanvas[DATA_TETRIS_RXC];
+int g_iShowScore = 0;
+
 
 char *show_Sharp(int iPixel)
 {
@@ -103,45 +119,58 @@ char *show_Sharp(int iPixel)
     }
 }
 
-void show_GotoXY(ushort x, ushort y)
+void show_Goto(ushort y, ushort x)
 {
     COORD pos;
 
-    pos.X = x;
     pos.Y = y;
+    pos.X = x;
 
     SetConsoleCursorPosition(g_hShowConsoleOut, pos);
 
     return;
 }
 
-void show_ShowPixel(int pixel, ushort x, ushort y)
+void show_ShowPixel(int pixel, ushort y, ushort x)
 {
-    show_GotoXY(x * SHOW_PIXEL_LEN, y);
+    CONSOLE_SCREEN_BUFFER_INFO stScreenInfo;
+    show_Goto(y, x * SHOW_PIXEL_LEN);
+
+    GetConsoleScreenBufferInfo(g_hShowConsoleOut, &stScreenInfo);
 
     SetConsoleTextAttribute(g_hShowConsoleOut, SHOW_COLOR(pixel));
     printf("%s", show_Sharp(pixel));
-    SetConsoleTextAttribute(g_hShowConsoleOut, SHOW_COLOR_DEFAULT);
+    SetConsoleTextAttribute(g_hShowConsoleOut, stScreenInfo.wAttributes);
 
     return;
 }
 
-int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL], int iForce)
+int show_ShowPixels(int *piDst, int *piSrc, RECT_S *pstPos)
 {
+    int index, col;
     CONSOLE_SCREEN_BUFFER_INFO stInfo;
+
+    assert(NULL != piSrc);
+    assert(NULL != pstPos);
 
     GetConsoleScreenBufferInfo(g_hShowConsoleOut, &stInfo);
 
-    for(int y = 0; y < SHOW_ROW; y++)
+    col = pstPos->r - pstPos->l;
+    for(int y = pstPos->t; y < pstPos->b; y++)
     {
-        for(int x = 0; x < SHOW_COL; x++)
+        for(int x = pstPos->l; x < pstPos->r; x++)
         {
-            if (g_aaiShowCanvas[y][x] == aaiCanvas[y][x] && !iForce)
+            index = DATA_INDEX(col, y - pstPos->t, x - pstPos->l);
+            if (NULL != piDst && piDst[index] == piSrc[index])
             {
                 continue;
             }
 
-            show_ShowPixel(aaiCanvas[y][x], x, y);
+            show_ShowPixel(piSrc[index], y, x);
+            if (NULL != piDst)
+            {
+                piDst[index] = piSrc[index];
+            }
         }
     }
 
@@ -150,38 +179,150 @@ int show_ShowCanvas(int aaiCanvas[SHOW_ROW][SHOW_COL], int iForce)
     return ERROR_SUCCESS;
 }
 
-int show_InitCanvas(void)
+int show_ShowPixelsForce(int *piDst, int *piSrc, RECT_S *pstPos)
 {
-    int x, y;
-    system("cls");
+    int index, col;
+    CONSOLE_SCREEN_BUFFER_INFO stInfo;
 
-    for (y = 0; y < SHOW_ROW; y++)
+    assert(NULL != piSrc);
+    assert(NULL != pstPos);
+
+    GetConsoleScreenBufferInfo(g_hShowConsoleOut, &stInfo);
+
+    col = pstPos->r - pstPos->l;
+    for(int y = pstPos->t; y < pstPos->b; y++)
     {
-        for (x = 0; x < SHOW_COL; x++)
+        for(int x = pstPos->l; x < pstPos->r; x++)
         {
-            g_aaiShowCanvas[y][x] = SHOW_SHARP_S;
+            index = DATA_INDEX(col, y - pstPos->t, x - pstPos->l);
+            show_ShowPixel(piSrc[index], y, x);
+            if (NULL != piDst)
+            {
+                piDst[index] = piSrc[index];
+            }
         }
     }
 
-    g_aaiShowCanvas[SHOW_MAP_Y_MIN][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
-    g_aaiShowCanvas[SHOW_MAP_Y_MAX][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
-    g_aaiShowCanvas[SHOW_MAP_Y_MIN][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
-    g_aaiShowCanvas[SHOW_MAP_Y_MAX][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
-    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_MAP_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
-    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_MAP_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
-    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++) g_aaiShowCanvas[SHOW_MAP_Y_MIN][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
-    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++) g_aaiShowCanvas[SHOW_MAP_Y_MAX][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    SetConsoleCursorPosition(g_hShowConsoleOut, stInfo.dwCursorPosition);
 
-    g_aaiShowCanvas[SHOW_NEXT_Y_MIN][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
-    g_aaiShowCanvas[SHOW_NEXT_Y_MAX][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
-    g_aaiShowCanvas[SHOW_NEXT_Y_MIN][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
-    g_aaiShowCanvas[SHOW_NEXT_Y_MAX][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
-    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_NEXT_X_MIN] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
-    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++) g_aaiShowCanvas[y][SHOW_NEXT_X_MAX] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
-    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++) g_aaiShowCanvas[SHOW_NEXT_Y_MIN][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
-    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++) g_aaiShowCanvas[SHOW_NEXT_Y_MAX][x] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    return ERROR_SUCCESS;
+}
 
-    show_ShowCanvas(g_aaiShowCanvas, 1);
+int show_ShowText(char *pcSrc, RECT_S *pstPos)
+{
+    char acFormat[12] = "%%-%ds";
+    CONSOLE_SCREEN_BUFFER_INFO stScreenInfo;
+
+    assert(NULL != pcSrc);
+    assert(NULL != pstPos);
+    assert(pstPos->r > pstPos->l);
+
+    acFormat[0] = 0;
+    snprintf(acFormat, sizeof(acFormat), "%%-%ds", (pstPos->r - pstPos->l) * SHOW_PIXEL_LEN);
+
+    GetConsoleScreenBufferInfo(g_hShowConsoleOut, &stScreenInfo);
+
+    show_Goto(pstPos->t, pstPos->l * SHOW_PIXEL_LEN);
+    SetConsoleTextAttribute(g_hShowConsoleOut, SHOW_COLOR_DEFAULT);
+    printf(acFormat, pcSrc);
+    SetConsoleTextAttribute(g_hShowConsoleOut, stScreenInfo.wAttributes);
+    show_Goto(stScreenInfo.dwCursorPosition.Y, stScreenInfo.dwCursorPosition.X);
+
+    return ERROR_SUCCESS;
+}
+
+int show_ShowScoreText(void)
+{
+    RECT_S stPos =
+            {
+            SHOW_NEXT_X_MIN + 1,
+            SHOW_SCORE_Y,
+            SHOW_NEXT_X_MAX,
+            SHOW_SCORE_Y + 1
+            };
+
+    return show_ShowText(SHOW_SCORE_TEXT, &stPos);
+}
+
+int show_ShowLevelText(void)
+{
+    RECT_S stPos =
+            {
+            SHOW_NEXT_X_MIN + 1,
+            SHOW_LEVEL_Y,
+            SHOW_NEXT_X_MAX,
+            SHOW_LEVEL_Y + 1
+            };
+
+    return show_ShowText(SHOW_LEVEL_TEXT, &stPos);
+}
+
+int show_ShowScoreForce(int iScore)
+{
+    char acScore[8];
+    RECT_S stPos =
+            {
+            SHOW_NEXT_X_MIN + 1,
+            SHOW_SCOREV_Y,
+            SHOW_NEXT_X_MAX,
+            SHOW_SCOREV_Y + 1
+            };
+
+    g_iShowScore = iScore;
+    acScore[0] = 0;
+    snprintf(acScore, sizeof(acScore), "%d", iScore);
+    show_ShowText(acScore, &stPos);
+
+    return ERROR_SUCCESS;
+}
+
+int show_InitCanvas(void)
+{
+    int x, y;
+    int aiShowCanvas[SHOW_CANVAS_RXC];
+    RECT_S stCanvasPos = {0, 0, SHOW_CANVAS_COL, SHOW_CANVAS_ROW};
+
+    system("cls");
+
+    for (y = 0; y < SHOW_CANVAS_ROW; y++)
+    {
+        for (x = 0; x < SHOW_CANVAS_COL; x++)
+        {
+            aiShowCanvas[SHOW_CANVAS_INDEX(y, x)] = SHOW_TABS_PIXEL(SHOW_SHARP_S);
+        }
+    }
+
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MIN, SHOW_MAP_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MAX, SHOW_MAP_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MIN, SHOW_MAP_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MAX, SHOW_MAP_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
+    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(y, SHOW_MAP_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (y = SHOW_MAP_Y_MIN + 1; y < SHOW_MAP_Y_MAX; y++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(y, SHOW_MAP_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MIN, x)] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    for (x = SHOW_MAP_X_MIN + 1; x < SHOW_MAP_X_MAX; x++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_MAP_Y_MAX, x)] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MIN, SHOW_NEXT_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_LT);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MAX, SHOW_NEXT_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_LB);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MIN, SHOW_NEXT_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_RT);
+    aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MAX, SHOW_NEXT_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_RB);
+    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(y, SHOW_NEXT_X_MIN)] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (y = SHOW_NEXT_Y_MIN + 1; y < SHOW_NEXT_Y_MAX; y++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(y, SHOW_NEXT_X_MAX)] = SHOW_TABS_PIXEL(SHOW_SHARP_V);
+    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MIN, x)] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+    for (x = SHOW_NEXT_X_MIN + 1; x < SHOW_NEXT_X_MAX; x++)
+        aiShowCanvas[SHOW_CANVAS_INDEX(SHOW_NEXT_Y_MAX, x)] = SHOW_TABS_PIXEL(SHOW_SHARP_H);
+
+    show_ShowPixelsForce(NULL, aiShowCanvas, &stCanvasPos);
+
+    show_ShowScoreText();
+    show_ShowLevelText();
+    show_ShowScoreForce(0);
 
     return ERROR_SUCCESS;
 }
@@ -199,50 +340,56 @@ int show_SetCursorVisible(int iVisible)
     return iOldVisible;
 }
 
-int SHOW_ShowMap(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
+int SHOW_ShowMap(int aiMap[DATA_MAP_RXC])
 {
-    int x, y;
-    int aaiCanvas[SHOW_ROW][SHOW_COL];
+    RECT_S stPos =
+            {
+            SHOW_MAP_X_MIN + 1,
+            SHOW_MAP_Y_MIN + 1,
+            SHOW_MAP_X_MAX,
+            SHOW_MAP_Y_MAX
+            };
 
-    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
-
-    for(y = 0; y < DATA_MAP_ROW && y < SHOW_ROW; y++)
-    {
-        for(x = 0; x < DATA_MAP_COL && x < SHOW_COL; x++)
-        {
-            aaiCanvas[y + SHOW_MAP_Y_MIN + 1][x + SHOW_MAP_X_MIN + 1] = aaiMap[y][x];
-        }
-        assert(x + SHOW_MAP_X_MIN + 1 == SHOW_MAP_X_MAX);
-    }
-    assert(y + SHOW_MAP_Y_MIN + 1 == SHOW_MAP_Y_MAX);
-
-    show_ShowCanvas(aaiCanvas, 0);
-
-    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+    show_ShowPixels(g_aiShowMapCanvas, aiMap, &stPos);
 
     return ERROR_SUCCESS;
 }
 
-int SHOW_ShowNext(int aaiNext[DATA_NEXT_ROW][DATA_NEXT_COL])
+int SHOW_ShowNext(int aiNext[DATA_TETRIS_RXC])
 {
-    int x, y;
-    int aaiCanvas[SHOW_ROW][SHOW_COL];
+    RECT_S stPos =
+            {
+            SHOW_NEXT_X_MIN + 1,
+            SHOW_NEXT_Y_MIN + 1,
+            SHOW_NEXT_X_MAX,
+            SHOW_NEXT_Y_MAX
+            };
 
-    memcpy(aaiCanvas, g_aaiShowCanvas, sizeof(aaiCanvas));
+    show_ShowPixels(g_aiShowNextCanvas, aiNext, &stPos);
 
-    for(y = 0; y < DATA_NEXT_ROW; y++)
+    return ERROR_SUCCESS;
+}
+
+int SHOW_ShowScore(int iScore)
+{
+    char acScore[8];
+    RECT_S stPos =
+            {
+            SHOW_NEXT_X_MIN + 1,
+            SHOW_SCOREV_Y,
+            SHOW_NEXT_X_MAX,
+            SHOW_SCOREV_Y + 1
+            };
+
+    if (g_iShowScore == iScore)
     {
-        for(x = 0; x < DATA_NEXT_COL; x++)
-        {
-            aaiCanvas[y + SHOW_NEXT_Y_MIN + 1][x + SHOW_NEXT_X_MIN + 1] = aaiNext[y][x];
-        }
-        assert(x + SHOW_NEXT_X_MIN + 1 == SHOW_NEXT_X_MAX);
+        return ERROR_SUCCESS;
     }
-    assert(y + SHOW_NEXT_Y_MIN + 1 == SHOW_NEXT_Y_MAX);
 
-    show_ShowCanvas(aaiCanvas, 0);
-
-    memcpy(g_aaiShowCanvas, aaiCanvas, sizeof(g_aaiShowCanvas));
+    g_iShowScore = iScore;
+    acScore[0] = 0;
+    snprintf(acScore, sizeof(acScore), "%d", iScore);
+    show_ShowText(acScore, &stPos);
 
     return ERROR_SUCCESS;
 }
@@ -260,13 +407,14 @@ int SHOW_Init()
     g_iShowCursorVisible = show_SetCursorVisible(0);
 
     iErrCode = show_InitCanvas();
+    show_Goto(SHOW_CANVAS_ROW, 0);
 
     return iErrCode;
 }
 
 void SHOW_Exit()
 {
-    show_GotoXY(0, SHOW_ROW);
+    show_Goto(SHOW_CANVAS_ROW, 0);
     show_SetCursorVisible(g_iShowCursorVisible);
 
     g_hShowConsoleOut = NULL;

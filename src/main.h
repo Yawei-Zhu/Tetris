@@ -5,10 +5,6 @@
  *      Author: Wind
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef MAIN_H_
 #define MAIN_H_
 
@@ -17,8 +13,24 @@ extern "C" {
 
 typedef int (*rpint)[];  // only use on return type of function
 
-#define MAIN_REFRESH_INTERVAL  60
-#define MAIN_TIMECOUNT_MAX     16
+typedef struct tagPoint
+{
+    int x;
+    int y;
+}POINT_S;
+
+typedef struct tagRect
+{
+    int l;
+    int t;
+    int r;
+    int b;
+}RECT_S;
+
+#define MAIN_REFRESH_INTERVAL  16
+#define MAIN_TIMECOUNT_WAIT    60
+#define MAIN_TIMECOUNT_FAST     4
+#define MAIN_TIMECOUNT_REMOVE   3
 
 typedef enum tagMainEvent
 {
@@ -32,7 +44,3 @@ typedef enum tagMainEvent
 int MAIN_WriteEvent(MAIN_EVENT_E enEvent, void *pData);
 
 #endif /* MAIN_H_ */
-
-#ifdef __cplusplus
-}
-#endif

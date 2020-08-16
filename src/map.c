@@ -22,76 +22,81 @@ typedef MAP_EVENT_E (*MAP_PROCEVENT_PF)(void);
 
 void map_SetCurrTetris(DATA_TETRIS_S *pstTetris)
 {
-    int aiPosition[2];
+    POINT_S stPosition;
+    int iMax;
 
     (void) DATA_SetCurrTetris(pstTetris);
 
-    aiPosition[0] = -4;
-    aiPosition[1] = DATA_MAP_COL / 2 - 2;
-    (void) DATA_SetCurrTetrisPosition(aiPosition);
+    iMax = pstTetris->astTetris[0].y;
+    for (int i = 1; i < ARRAY_SIZE(pstTetris->astTetris); i++)
+    {
+        if (iMax < pstTetris->astTetris[i].y)
+        {
+            iMax = pstTetris->astTetris[i].y;
+        }
+    }
+
+    stPosition.y = 0 - iMax;
+    stPosition.x = DATA_MAP_COL / 2 - 2;
+    (void) DATA_SetCurrTetrisPos(&stPosition);
 
     return;
-}
-
-void map_UpdateNextTetris(void)
-{
-    DATA_TETRIS_S stTetris;
-
-    DATA_GetRandTetris(&stTetris);
-    (void) DATA_SetNextTetris(&stTetris);
 }
 
 void map_Show(void)
 {
-    int aaiMap[DATA_MAP_ROW][DATA_MAP_COL], aaiNext[4][4];
-    int x, y, *piPosition;
+    int aiMap[DATA_MAP_ROW * DATA_MAP_COL], aiNext[DATA_TETRIS_ROW * DATA_TETRIS_COL];
+    int x, y;
+    POINT_S *pstPosition;
     DATA_TETRIS_S *pstTetris;
 
-    memcpy(aaiMap, DATA_GetMapCanvas(), sizeof(aaiMap));
+    memcpy(aiMap, DATA_GetMapCanvas(), sizeof(aiMap));
 
     pstTetris = DATA_GetCurrTetris();
-    piPosition = DATA_GetCurrTetrisPosition();
-    for (int i = 0; i < 4; i++)
+    pstPosition = DATA_GetCurrTetrisPos();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0] + piPosition[0];
-        x = pstTetris->aaiTetris[i][1] + piPosition[1];
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
         if (0 <= y)
         {
             assert(0 <= y && y < DATA_MAP_ROW && 0 <= x && x < DATA_MAP_COL);
-            aaiMap[y][x] = pstTetris->iTetrisPixel;
+            aiMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
         }
     }
 
-    SHOW_ShowMap(aaiMap);
+    SHOW_ShowMap(aiMap);
 
     pstTetris = DATA_GetNextTetris();
-    memset(aaiNext, 0, sizeof(aaiNext));
-    for (int i = 0; i < 4; i++)
+    memset(aiNext, 0, sizeof(aiNext));
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0];
-        x = pstTetris->aaiTetris[i][1];
-        aaiNext[y][x] = pstTetris->iTetrisPixel;
+        y = pstTetris->astTetris[i].y;
+        x = pstTetris->astTetris[i].x;
+        aiNext[DATA_INDEX_NEXT(y, x)] = pstTetris->iTetrisPixel;
     }
 
-    SHOW_ShowNext(aaiNext);
+    SHOW_ShowNext(aiNext);
+
+    SHOW_ShowScore(DATA_PeekScore());
 
     return;
 }
 
-int map_RemoveRowMap(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
+int map_RemoveRowMap(int aiMap[DATA_MAP_RXC])
 {
     int iRemove, iCount;
-    int (*ppiMap)[DATA_MAP_COL];
+    int *piMap;
 
-    ppiMap = DATA_GetMapCanvas();
+    piMap = DATA_GetMapCanvas();
     iCount = 0;
     for (int y = DATA_MAP_ROW - 1; y >= 0; y--)
     {
         iRemove = 1;
         for (int x = 0; x < DATA_MAP_COL; x++)
         {
-            aaiMap[y + iCount][x] = ppiMap[y][x];
-            if (SHOW_SHARP_INVALID != ppiMap[y][x])
+            aiMap[DATA_INDEX_MAP(y + iCount, x)] = piMap[DATA_INDEX_MAP(y, x)];
+            if (SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)])
             {
                 iRemove = 0;
             }
@@ -107,25 +112,26 @@ int map_RemoveRowMap(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
     return iCount;
 }
 
-int map_RemoveRowCurrTetris(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
+int map_RemoveRowCurrTetris(int aiMap[DATA_MAP_RXC])
 {
     int iRemove, iCount, x, y, iCannot = 0;
-    int *piRmRow, *piCurrPosition;
+    int *piRmRow;
+    POINT_S *pstPosition;
     DATA_TETRIS_S *pstTetris;
     DATA_RMROW_S *pstRmRow;
 
     pstRmRow = DATA_GetRmRow();
-    piRmRow = pstRmRow->aaiRow;
+    piRmRow = pstRmRow->aiRow;
     assert(0 < pstRmRow->iCount);
 
     pstTetris = DATA_GetCurrTetris();
-    piCurrPosition = DATA_GetCurrTetrisPosition();
-    for (int i = 0; i < 4; i++)
+    pstPosition = DATA_GetCurrTetrisPos();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
         iRemove = 0;
         iCount = 0;
-        y = pstTetris->aaiTetris[i][0] + piCurrPosition[0];
-        x = pstTetris->aaiTetris[i][1] + piCurrPosition[1];
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
         for (int index = 0; index < pstRmRow->iCount; index++)
         {
             if (y == piRmRow[index])
@@ -144,7 +150,7 @@ int map_RemoveRowCurrTetris(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
             y += iCount;
             if (y >= 0)
             {
-                aaiMap[y][x] = pstTetris->iTetrisPixel;
+                aiMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
             }
 
             if (y <= 0)
@@ -159,30 +165,30 @@ int map_RemoveRowCurrTetris(int aaiMap[DATA_MAP_ROW][DATA_MAP_COL])
 
 int map_RemoveRow(void)
 {
-    int iCannot;
-    int aaiMap[DATA_MAP_ROW][DATA_MAP_COL];
+    int iIsOver;
+    int aiMap[DATA_MAP_RXC];
 
-    memset(aaiMap, 0, sizeof(aaiMap));
+    memset(aiMap, 0, sizeof(aiMap));
 
-    (void) map_RemoveRowMap(aaiMap);
+    (void) map_RemoveRowMap(aiMap);
 
-    iCannot = map_RemoveRowCurrTetris(aaiMap);
+    iIsOver = map_RemoveRowCurrTetris(aiMap);
 
-    (void) DATA_SetMapCanvas(aaiMap);
+    (void) DATA_SetMapCanvas(aiMap);
 
-    return iCannot;
+    return iIsOver;
 }
 
 int map_TryRemoveCol(void)
 {
-    int aaiMap[DATA_MAP_ROW][DATA_MAP_COL];
+    int aiMap[DATA_MAP_RXC];
     int iRemove, iLeft, iRight;
     int *piRmRow;
     DATA_RMROW_S *pstRmRow;
 
-    memcpy(aaiMap, DATA_GetMapCanvas(), sizeof(aaiMap));
+    memcpy(aiMap, DATA_GetMapCanvas(), sizeof(aiMap));
     pstRmRow = DATA_GetRmRow();
-    piRmRow = pstRmRow->aaiRow;
+    piRmRow = pstRmRow->aiRow;
     assert(0 < pstRmRow->iCount);
 
     iRemove = 0;
@@ -191,19 +197,19 @@ int map_TryRemoveCol(void)
     for (; iLeft >= 0; iLeft--, iRight++)
     {
         assert(DATA_MAP_COL > iRight);
-        if (SHOW_SHARP_INVALID == aaiMap[piRmRow[0]][iLeft])
+        if (SHOW_SHARP_INVALID == aiMap[DATA_INDEX_MAP(piRmRow[0], iLeft)])
         {
             continue;
         }
 
         for (int i = 0; i < pstRmRow->iCount; i++)
         {
-            assert(SHOW_SHARP_INVALID != aaiMap[piRmRow[i]][iLeft]);
-            aaiMap[piRmRow[i]][iLeft] = SHOW_SHARP_INVALID;
+            assert(SHOW_SHARP_INVALID != aiMap[DATA_INDEX_MAP(piRmRow[i], iLeft)]);
+            aiMap[DATA_INDEX_MAP(piRmRow[i], iLeft)] = SHOW_SHARP_INVALID;
             if (iRight != iLeft)
             {
-                assert(SHOW_SHARP_INVALID != aaiMap[piRmRow[i]][iRight]);
-                aaiMap[piRmRow[i]][iRight] = SHOW_SHARP_INVALID;
+                assert(SHOW_SHARP_INVALID != aiMap[DATA_INDEX_MAP(piRmRow[i], iRight)]);
+                aiMap[DATA_INDEX_MAP(piRmRow[i], iRight)] = SHOW_SHARP_INVALID;
             }
         }
         iRemove = 1;
@@ -212,7 +218,7 @@ int map_TryRemoveCol(void)
 
     if (iRemove)
     {
-        (void) DATA_SetMapCanvas(aaiMap);
+        (void) DATA_SetMapCanvas(aiMap);
     }
 
     return iRemove;
@@ -220,18 +226,20 @@ int map_TryRemoveCol(void)
 
 MAP_EVENT_E map_ActionInit()
 {
-    int aaiMap[DATA_MAP_ROW][DATA_MAP_COL];
+    int aiMap[DATA_MAP_RXC];
     DATA_TETRIS_S stTetris;
 
-    memset(aaiMap, 0, sizeof(aaiMap));
-    (void) DATA_SetMapCanvas(aaiMap);
+    memset(aiMap, 0, sizeof(aiMap));
+    (void) DATA_SetMapCanvas(aiMap);
     (void) DATA_ResetTimeCount();
 
     memset(&stTetris, 0, sizeof(stTetris));
     map_SetCurrTetris(&stTetris);
 
     DATA_SetRandSeed(time(NULL));
-    map_UpdateNextTetris();
+    DATA_UpdateNextTetris();
+
+    DATA_ResetScore();
 
     DATA_SetCurrState(MS_INIT);
 
@@ -241,129 +249,145 @@ MAP_EVENT_E map_ActionInit()
 MAP_EVENT_E map_ActionStart()
 {
     map_SetCurrTetris(DATA_GetNextTetris());
-    map_UpdateNextTetris();
+    DATA_UpdateNextTetris();
     DATA_SetCurrState(MS_WAITING);
-
-    return ME_MAX;
-}
-
-MAP_EVENT_E map_ActionTick()
-{
-    if (MAIN_TIMECOUNT_MAX <= DATA_UpdateTimeCount())
-    {
-        return ME_DOWN;
-    }
 
     return ME_MAX;
 }
 
 MAP_EVENT_E map_ActionDown()
 {
-    int aiPosition[2], x, y;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y;
+    int *piMap;
+    POINT_S stPosition;
     DATA_TETRIS_S *pstTetris;
 
-    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
-    aiPosition[0]++;
+    if (MS_WAITING == DATA_GetCurrState())
+    {
+        if (MAIN_TIMECOUNT_WAIT > DATA_UpdateTimeCount())
+        {
+            return ME_MAX;
+        }
+
+        DATA_ResetTimeCount();
+    }
+    else
+    {
+        assert(MS_FAST == DATA_GetCurrState());
+
+        if (MAIN_TIMECOUNT_FAST > DATA_UpdateTimeCount())
+        {
+            return ME_MAX;
+        }
+    }
+
+    DATA_ResetTimeCount();
+
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.y++;
 
     pstTetris = DATA_GetCurrTetris();
-    ppiMap = DATA_GetMapCanvas();
-    for (int i = 0; i < 4; i++)
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0] + aiPosition[0];
-        x = pstTetris->aaiTetris[i][1] + aiPosition[1];
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
 
-        if (DATA_MAP_ROW <= y || (0 <= y && SHOW_SHARP_INVALID != ppiMap[y][x]))
+        if (DATA_MAP_ROW <= y ||
+                (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
         {
             return ME_LAND;
         }
     }
 
-    DATA_SetCurrTetrisPosition(aiPosition);
-    DATA_ResetTimeCount();
+    DATA_SetCurrTetrisPos(&stPosition);
 
     return ME_MAX;
 }
 
 MAP_EVENT_E map_ActionLeft()
 {
-    int aiPosition[2], x, y;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y;
+    int *piMap;
+    POINT_S stPosition;
     DATA_TETRIS_S *pstTetris;
 
-    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
-    aiPosition[1]--;
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.x--;
 
     pstTetris = DATA_GetCurrTetris();
-    ppiMap = DATA_GetMapCanvas();
-    for (int i = 0; i < 4; i++)
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0] + aiPosition[0];
-        x = pstTetris->aaiTetris[i][1] + aiPosition[1];
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
 
-        if (0 > x || (0 <= y && SHOW_SHARP_INVALID != ppiMap[y][x]))
+        if (0 > x || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
         {
             return ME_MAX;
         }
     }
 
-    DATA_SetCurrTetrisPosition(aiPosition);
+    DATA_SetCurrTetrisPos(&stPosition);
 
     return ME_MAX;
 }
 
 MAP_EVENT_E map_ActionRight()
 {
-    int aiPosition[2], x, y;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y;
+    int *piMap;
+    POINT_S stPosition;
     DATA_TETRIS_S *pstTetris;
 
-    memcpy(aiPosition, DATA_GetCurrTetrisPosition(), sizeof(aiPosition));
-    aiPosition[1]++;
+    memcpy(&stPosition, DATA_GetCurrTetrisPos(), sizeof(stPosition));
+    stPosition.x++;
 
     pstTetris = DATA_GetCurrTetris();
-    ppiMap = DATA_GetMapCanvas();
-    for (int i = 0; i < 4; i++)
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0] + aiPosition[0];
-        x = pstTetris->aaiTetris[i][1] + aiPosition[1];
+        y = pstTetris->astTetris[i].y + stPosition.y;
+        x = pstTetris->astTetris[i].x + stPosition.x;
 
-        if (DATA_MAP_COL <= x || (0 <= y && SHOW_SHARP_INVALID != ppiMap[y][x]))
+        if (DATA_MAP_COL <= x ||
+                (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
         {
             return ME_MAX;
         }
     }
 
-    DATA_SetCurrTetrisPosition(aiPosition);
+    DATA_SetCurrTetrisPos(&stPosition);
 
     return ME_MAX;
 }
 
 MAP_EVENT_E map_ActionClock()
 {
-    int x, y, *piPosition;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y;
+    int *piMap;
+    POINT_S *pstPosition;
     DATA_TETRIS_S stTetris;
 
     memcpy(&stTetris, DATA_GetCurrTetris(), sizeof(stTetris));
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
     {
-        y = stTetris.aaiTetris[i][0];
-        x = stTetris.aaiTetris[i][1];
+        y = stTetris.astTetris[i].y;
+        x = stTetris.astTetris[i].x;
 
-        stTetris.aaiTetris[i][0] = x;
-        stTetris.aaiTetris[i][1] = 3 - y;
+        stTetris.astTetris[i].y = x;
+        stTetris.astTetris[i].x = 3 - y;
     }
 
-    piPosition = DATA_GetCurrTetrisPosition();
-    ppiMap = DATA_GetMapCanvas();
-    for (int i = 0; i < 4; i++)
+    pstPosition = DATA_GetCurrTetrisPos();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
     {
-        y = stTetris.aaiTetris[i][0] + piPosition[0];
-        x = stTetris.aaiTetris[i][1] + piPosition[1];
+        y = stTetris.astTetris[i].y + pstPosition->y;
+        x = stTetris.astTetris[i].x + pstPosition->x;
 
         if (DATA_MAP_COL <= x || 0 > x || -4 > y || DATA_MAP_ROW <= y
-                || (0 <= y && SHOW_SHARP_INVALID != ppiMap[y][x]))
+                || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
         {
             return ME_MAX;
         }
@@ -376,29 +400,30 @@ MAP_EVENT_E map_ActionClock()
 
 MAP_EVENT_E map_ActionCntrClk()
 {
-    int x, y, *piPosition;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y;
+    int *piMap;
+    POINT_S *pstPosition;
     DATA_TETRIS_S stTetris;
 
     memcpy(&stTetris, DATA_GetCurrTetris(), sizeof(stTetris));
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
     {
-        y = stTetris.aaiTetris[i][0];
-        x = stTetris.aaiTetris[i][1];
+        y = stTetris.astTetris[i].y;
+        x = stTetris.astTetris[i].x;
 
-        stTetris.aaiTetris[i][0] = 3 - x;
-        stTetris.aaiTetris[i][1] = y;
+        stTetris.astTetris[i].y = 3 - x;
+        stTetris.astTetris[i].x = y;
     }
 
-    piPosition = DATA_GetCurrTetrisPosition();
-    ppiMap = DATA_GetMapCanvas();
-    for (int i = 0; i < 4; i++)
+    pstPosition = DATA_GetCurrTetrisPos();
+    piMap = DATA_GetMapCanvas();
+    for (int i = 0; i < ARRAY_SIZE(stTetris.astTetris); i++)
     {
-        y = stTetris.aaiTetris[i][0] + piPosition[0];
-        x = stTetris.aaiTetris[i][1] + piPosition[1];
+        y = stTetris.astTetris[i].y + pstPosition->y;
+        x = stTetris.astTetris[i].x + pstPosition->x;
 
         if (DATA_MAP_COL <= x || 0 > x || -4 > y || DATA_MAP_ROW <= y
-                || (0 <= y && SHOW_SHARP_INVALID != ppiMap[y][x]))
+                || (0 <= y && SHOW_SHARP_INVALID != piMap[DATA_INDEX_MAP(y, x)]))
         {
             return ME_MAX;
         }
@@ -411,25 +436,27 @@ MAP_EVENT_E map_ActionCntrClk()
 
 MAP_EVENT_E map_ActionLand()
 {
-    int x, y, *piPosition, iCan, iIsOver = 0;
-    int (*ppiMap)[DATA_MAP_COL];
+    int x, y, iCan, iIsOver = 0;
+    int *piMap;
+    POINT_S *pstPosition;
     DATA_TETRIS_S *pstTetris;
     DATA_RMROW_S stRmRow;
 
-    ppiMap = DATA_GetMapCanvas();
+    piMap = DATA_GetMapCanvas();
     pstTetris = DATA_GetCurrTetris();
-    piPosition = DATA_GetCurrTetrisPosition();
+    pstPosition = DATA_GetCurrTetrisPos();
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < ARRAY_SIZE(pstTetris->astTetris); i++)
     {
-        y = pstTetris->aaiTetris[i][0] + piPosition[0];
-        x = pstTetris->aaiTetris[i][1] + piPosition[1];
+        y = pstTetris->astTetris[i].y + pstPosition->y;
+        x = pstTetris->astTetris[i].x + pstPosition->x;
 
         if (0 <= y)
         {
-            ppiMap[y][x] = pstTetris->iTetrisPixel;
+            piMap[DATA_INDEX_MAP(y, x)] = pstTetris->iTetrisPixel;
         }
-        else
+
+        if (0 >= y)
         {
             iIsOver = 1;
         }
@@ -441,7 +468,7 @@ MAP_EVENT_E map_ActionLand()
         iCan = 1;
         for (int x = 0; DATA_MAP_COL > x; x++)
         {
-            if (SHOW_SHARP_INVALID == ppiMap[y][x])
+            if (SHOW_SHARP_INVALID == piMap[DATA_INDEX_MAP(y, x)])
             {
                 iCan = 0;
                 break;
@@ -450,8 +477,8 @@ MAP_EVENT_E map_ActionLand()
 
         if (iCan)
         {
-            assert(stRmRow.iCount < 4);
-            stRmRow.aaiRow[stRmRow.iCount] = y;
+            assert(stRmRow.iCount < ARRAY_SIZE(stRmRow.aiRow));
+            stRmRow.aiRow[stRmRow.iCount] = y;
             stRmRow.iCount++;
         }
     }
@@ -469,7 +496,7 @@ MAP_EVENT_E map_ActionLand()
     }
 
     map_SetCurrTetris(DATA_GetNextTetris());
-    map_UpdateNextTetris();
+    DATA_UpdateNextTetris();
     DATA_SetCurrState(MS_WAITING);
 
     return ME_MAX;
@@ -477,7 +504,17 @@ MAP_EVENT_E map_ActionLand()
 
 MAP_EVENT_E map_ActionRemove(void)
 {
-    int iRemove, iCannot;
+    int iRemove, iIsOver;
+    DATA_RMROW_S *pstRmRow;
+
+    assert(MS_REMOVE == DATA_GetCurrState());
+
+    if (MAIN_TIMECOUNT_REMOVE > DATA_UpdateTimeCount())
+    {
+        return ME_MAX;
+    }
+
+    DATA_ResetTimeCount();
 
     iRemove = map_TryRemoveCol();
     if (iRemove)
@@ -485,15 +522,18 @@ MAP_EVENT_E map_ActionRemove(void)
         return ME_MAX;
     }
 
-    iCannot = map_RemoveRow();
-    if (iCannot)
+    pstRmRow = DATA_GetRmRow();
+    DATA_IncreaseScore(pstRmRow->iCount);
+
+    iIsOver = map_RemoveRow();
+    if (iIsOver)
     {
         DATA_SetCurrState(MS_OVER);
     }
     else
     {
         map_SetCurrTetris(DATA_GetNextTetris());
-        map_UpdateNextTetris();
+        DATA_UpdateNextTetris();
         DATA_SetCurrState(MS_WAITING);
     }
 
@@ -523,12 +563,24 @@ MAP_EVENT_E map_TranPause()
 
 static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
 {
-        [MS_INIT] =
+        [MS_INVALID] =
         {
                 [ME_INIT]       = map_ActionInit,
+                [ME_START]      = NULL,
+                [ME_TICK]       = NULL,
+                [ME_LEFT]       = NULL,
+                [ME_RIGHT]      = NULL,
+                [ME_CLOCK]      = NULL,
+                [ME_CNTRCLK]    = NULL,
+                [ME_LAND]       = NULL,
+                [ME_PAUSETOG]   = NULL,
+                [ME_FASTTOG]    = NULL,
+        },
+        [MS_INIT] =
+        {
+                [ME_INIT]       = NULL,
                 [ME_START]      = map_ActionStart,
                 [ME_TICK]       = NULL,
-                [ME_DOWN]       = NULL,
                 [ME_LEFT]       = NULL,
                 [ME_RIGHT]      = NULL,
                 [ME_CLOCK]      = NULL,
@@ -541,8 +593,7 @@ static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
         {
                 [ME_INIT]       = NULL,
                 [ME_START]      = NULL,
-                [ME_TICK]       = map_ActionTick,
-                [ME_DOWN]       = map_ActionDown,
+                [ME_TICK]       = map_ActionDown,
                 [ME_LEFT]       = map_ActionLeft,
                 [ME_RIGHT]      = map_ActionRight,
                 [ME_CLOCK]      = map_ActionClock,
@@ -556,7 +607,6 @@ static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
                 [ME_INIT]       = NULL,
                 [ME_START]      = NULL,
                 [ME_TICK]       = map_ActionDown,
-                [ME_DOWN]       = NULL,
                 [ME_LEFT]       = NULL,
                 [ME_RIGHT]      = NULL,
                 [ME_CLOCK]      = NULL,
@@ -570,7 +620,6 @@ static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
                 [ME_INIT]       = NULL,
                 [ME_START]      = NULL,
                 [ME_TICK]       = map_ActionRemove,
-                [ME_DOWN]       = NULL,
                 [ME_LEFT]       = NULL,
                 [ME_RIGHT]      = NULL,
                 [ME_CLOCK]      = NULL,
@@ -584,7 +633,6 @@ static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
                 [ME_INIT]       = NULL,
                 [ME_START]      = NULL,
                 [ME_TICK]       = NULL,
-                [ME_DOWN]       = NULL,
                 [ME_LEFT]       = NULL,
                 [ME_RIGHT]      = NULL,
                 [ME_CLOCK]      = NULL,
@@ -598,7 +646,6 @@ static MAP_PROCEVENT_PF g_apfMapFSM[MS_MAX][ME_MAX] =
                 [ME_INIT]       = NULL,
                 [ME_START]      = map_ActionInit,
                 [ME_TICK]       = NULL,
-                [ME_DOWN]       = NULL,
                 [ME_LEFT]       = NULL,
                 [ME_RIGHT]      = NULL,
                 [ME_CLOCK]      = NULL,
@@ -722,7 +769,7 @@ int MAP_ProcEvent(MAIN_EVENT_E enEvent, void *pData)
 
 int MAP_Init()
 {
-    DATA_SetCurrState(MS_INIT);
+    DATA_SetCurrState(MS_INVALID);
     map_FSM(ME_INIT);
 
     return ERROR_SUCCESS;
